@@ -1,0 +1,11 @@
+[Server]
+bind = 0.0.0.0
+port = 9999
+username = hashcatnodeuser
+password = hashcatnodepassword
+
+[Hashcat]
+binary = /usr/bin/hashcat
+rule_dir = /path/to/hahscat/rule/dir
+wordlist_dir = /path/to/hashcat/wordlist/dir
+mask_dir = /path/to/hashcat/mask/dir

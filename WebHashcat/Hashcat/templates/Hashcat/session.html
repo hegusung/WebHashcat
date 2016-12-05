@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+   <div class="panel panel-success">
+      <div class="panel-heading">
+         <h2 class="panel-title">{{ session }}</h2>
+      </div>
+      <div class="panel-body">
+         Node: {{ node }}<br/>
+         Cracking type: {{ crack_type|title }}<br/>
+         Status: {{ status }}<br/>
+         Time started: {{ time_started }}<br/>
+         Time estimated: {{ time_estimated }}<br/>
+         Speed: {{ speed }}<br/>
+         Recovered: {{ recovered }}<br/>
+         Progress: {{ progress }}%<br/>
+      </div>
+   </div>
+
+   {% if status == "Not started" %}
+   <a href="{% url "Hashcat:action_session" node session "start" %}"><button type="button" class="btn btn-primary btn-xs">Start</button></a>
+   {% elif status == "Running" %}
+   <a href="{% url "Hashcat:action_session" node session "update" %}"><button type="button" class="btn btn-primary btn-xs">Update</button></a>
+   <a href="{% url "Hashcat:action_session" node session "pause" %}"><button type="button" class="btn btn-primary btn-xs">Pause</button></a>
+   <a href="{% url "Hashcat:action_session" node session "quit" %}"><button type="button" class="btn btn-primary btn-xs">Stop</button></a>
+   {% elif status == "Paused" %}
+   <a href="{% url "Hashcat:action_session" node session "resume" %}"><button type="button" class="btn btn-primary btn-xs">Resume</button></a>
+   <a href="{% url "Hashcat:action_session" node session "quit" %}"><button type="button" class="btn btn-primary btn-xs">Stop</button></a>
+   {% endif %}
+
+   <div class="row">
+      <div class="col-md-6">
+         <h3> Cracked: <a href="{% url "Hashcat:export" node session %}"><button type="button" class="btn btn-xs">Export</button></a></h3>
+         <pre>{{ results }}</pre>
+      </div>
+
+      <div class="col-md-6">
+         <h3> Statistics: </h3> 
+         <div id="top10_graph" class="well well-sm">
+            {{ top10_graph|safe }}
+         </div>
+         <div id="pass_len_graph" class="well well-sm">
+            {{ pass_len_graph|safe }}
+         </div>
+         <div id="pass_charset_graph" class="well well-sm">
+            {{ pass_charset_graph|safe }}
+         </div>
+      </div>
+   </div>
+{% endblock %}
