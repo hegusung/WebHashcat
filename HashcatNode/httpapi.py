@@ -17,7 +17,7 @@ from io import BytesIO, StringIO
 from hashcat import Hashcat
 
 class Server:
-    def __init__(self, host, port, user, password, hashcat):
+    def __init__(self, host, port, user, password, hash_directory):
         self._host = host
         self._port = port
         self._app = Flask(__name__)
@@ -27,9 +27,10 @@ class Server:
         self._app.config['BASIC_AUTH_USERNAME'] = user
         self._app.config['BASIC_AUTH_PASSWORD'] = password
 
-        self.hashcat = hashcat
         self.user = user
         self.password = password
+
+        self.hash_directory = hash_directory
 
     def _route(self):
         self._app.add_url_rule("/hashcatInfo", "hashcatInfo", self._hashcatInfo, methods=["GET"])
@@ -63,12 +64,12 @@ class Server:
     """
     def _hashcatInfo(self):
         try:
-            hash_types = list(self.hashcat.hash_modes.values())
-            rules = list(self.hashcat.rules.keys())
-            masks = list(self.hashcat.masks.keys())
-            wordlists = list(self.hashcat.wordlists.keys())
+            hash_types = list(Hashcat.hash_modes.values())
+            rules = list(Hashcat.rules.keys())
+            masks = list(Hashcat.masks.keys())
+            wordlists = list(Hashcat.wordlists.keys())
             sessions = []
-            for session in self.hashcat.sessions.values():
+            for session in Hashcat.sessions.values():
                 sessions.append({
                     "name": session.name,
                     "status": session.session_status,
@@ -79,7 +80,7 @@ class Server:
 
             result = {
                 "response": "ok",
-                "version": self.hashcat.version,
+                "version": Hashcat.version,
                 "hash_types": hash_types,
                 "rules": rules,
                 "masks": masks,
@@ -114,7 +115,7 @@ class Server:
     def _sessionInfo(self, session_name):
         try:
 
-            result = self.hashcat.sessions[session_name].details()
+            result = Hashcat.sessions[session_name].details()
             result["response"] = "ok"
 
             return json.dumps(result)
@@ -131,7 +132,7 @@ class Server:
     """
     def _cracked(self, session_name):
         try:
-            cracked = self.hashcat.sessions[session_name].cracked()
+            cracked = Hashcat.sessions[session_name].cracked()
 
             return json.dumps({
                 "response": "ok",
@@ -162,13 +163,13 @@ class Server:
             data = json.loads(request.data.decode())
 
             random_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
-            hash_file = os.path.join("/tmp", random_name+".list")
+            hash_file = os.path.join(self.hash_directory, data["name"]+"_"+random_name+".list")
 
             f = open(hash_file, "w")
             f.write(data["hashes"])
             f.close()
 
-            self.hashcat.create_session(
+            Hashcat.create_session(
                 data["name"],
                 data["crack_type"],
                 hash_file,
@@ -195,7 +196,7 @@ class Server:
     """
     def _removeSession(self, session_name):
         try:
-            self.hashcat.remove_session(session_name)
+            Hashcat.remove_session(session_name)
 
             res = {"response": "ok"}
 
@@ -219,15 +220,15 @@ class Server:
             data = json.loads(request.data.decode())
 
             if data["action"] == "start":
-                self.hashcat.sessions[data["session"]].start()
+                Hashcat.sessions[data["session"]].start()
             if data["action"] == "update":
-                self.hashcat.sessions[data["session"]].update()
+                Hashcat.sessions[data["session"]].update()
             if data["action"] == "pause":
-                self.hashcat.sessions[data["session"]].pause()
+                Hashcat.sessions[data["session"]].pause()
             if data["action"] == "resume":
-                self.hashcat.sessions[data["session"]].resume()
+                Hashcat.sessions[data["session"]].resume()
             if data["action"] == "quit":
-                self.hashcat.sessions[data["session"]].quit()
+                Hashcat.sessions[data["session"]].quit()
 
             res = {"response": "ok"}
 
@@ -250,7 +251,7 @@ class Server:
         try:
             data = json.loads(request.data.decode())
 
-            self.hashcat.upload_rule(data["name"], data["rules"])
+            Hashcat.upload_rule(data["name"], data["rules"])
 
             res = {"response": "ok"}
 
@@ -273,7 +274,7 @@ class Server:
         try:
             data = json.loads(request.data.decode())
 
-            self.hashcat.upload_mask(data["name"], data["masks"])
+            Hashcat.upload_mask(data["name"], data["masks"])
 
             res = {"response": "ok"}
 
@@ -296,7 +297,7 @@ class Server:
         try:
             data = json.loads(request.data.decode())
 
-            self.hashcat.upload_wordlist(data["name"], data["wordlists"])
+            Hashcat.upload_wordlist(data["name"], data["wordlists"])
 
             res = {"response": "ok"}
 

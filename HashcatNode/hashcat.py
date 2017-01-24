@@ -11,30 +11,22 @@ import threading
 import random
 import string
 import operator
+from peewee import Model, SqliteDatabase, CharField, DateTimeField, ForeignKeyField, IntegerField, BooleanField, TextField, BlobField
+
+database = SqliteDatabase("hashcatnode.db")
 
 class Hashcat(object):
 
-    def __init__(self, binary, rules_dir, wordlist_dir, mask_dir):
-        self.binary = binary
-        self.rules_dir = rules_dir
-        self.wordlist_dir = wordlist_dir
-        self.mask_dir = mask_dir
-
-        self.hash_modes = {}
-        self.rules = {}
-        self.masks = {}
-        self.wordlists = {}
-        self.sessions = {}
-
-        self.parse_version()
-        self.parse_help()
-        self.parse_rules()
-        self.parse_masks()
-        self.parse_wordlists()
+    hash_modes = {}
+    rules = {}
+    masks = {}
+    wordlists = {}
+    sessions = {}
 
     """
         Parse hashcat version
     """
+    @classmethod
     def parse_version(self):
 
         hashcat_version = subprocess.Popen([self.binary, '-V'] , stdout=subprocess.PIPE)
@@ -43,6 +35,7 @@ class Hashcat(object):
     """
         Parse hashcat help
     """
+    @classmethod
     def parse_help(self):
 
         help_section = None
@@ -73,6 +66,7 @@ class Hashcat(object):
     """
         Parse rule directory
     """
+    @classmethod
     def parse_rules(self):
         rule_files = [join(self.rules_dir, f) for f in listdir(self.rules_dir) if isfile(join(self.rules_dir, f))]
 
@@ -84,6 +78,7 @@ class Hashcat(object):
     """
         Parse wordlist directory
     """
+    @classmethod
     def parse_wordlists(self):
         wordlist_files = [join(self.wordlist_dir, f) for f in listdir(self.wordlist_dir) if isfile(join(self.wordlist_dir, f))]
 
@@ -95,6 +90,7 @@ class Hashcat(object):
     """
         Parse mask directory
     """
+    @classmethod
     def parse_masks(self):
         mask_files = [join(self.mask_dir, f) for f in listdir(self.mask_dir) if isfile(join(self.mask_dir, f))]
 
@@ -106,6 +102,7 @@ class Hashcat(object):
     """
         Create a new session
     """
+    @classmethod
     def create_session(self, name, crack_type, hash_file, hash_mode_id, wordlist, rule, mask, username_included):
 
         if name in self.sessions:
@@ -134,26 +131,55 @@ class Hashcat(object):
             rule_path = None
             wordlist_path = None
 
-        session = Session(self, name, crack_type, hash_file, hash_mode_id, wordlist_path, rule_path, mask_path, username_included)
+        session = Session(
+            name=name,
+            crack_type=crack_type,
+            hash_file=hash_file,
+            hash_mode_id=hash_mode_id,
+            wordlist_file=wordlist_path,
+            rule_file=rule_path,
+            mask_file=mask_path,
+            username_included=username_included,
+            session_status="Not started",
+            time_started=None,
+        )
         self.sessions[session.name] = session
+        session.setup()
+        session.save()
 
         return session
 
     """
         Remove a session
     """
+    @classmethod
     def remove_session(self, name):
 
         if not name in self.sessions:
             raise Exception("This session name doesn't exists")
 
         self.sessions[name].remove()
+        self.sessions[name].delete_instance()
 
         del self.sessions[name]
 
     """
+        Reload sessions
+    """
+    @classmethod
+    def reload_sessions(self):
+
+        for session in Session.select():
+            if session.session_status in ["Running", "Paused"]:
+                session.session_status = "Aborted"
+                session.save()
+            self.sessions[session.name] = session
+            session.setup()
+
+    """
         Upload a new rule file
     """
+    @classmethod
     def upload_rule(self, name, rules):
 
         name = name.split("/")[-1]
@@ -175,6 +201,7 @@ class Hashcat(object):
     """
         Upload a new mask file
     """
+    @classmethod
     def upload_mask(self, name, masks):
 
         name = name.split("/")[-1]
@@ -196,6 +223,7 @@ class Hashcat(object):
     """
         Upload a new wordlist file
     """
+    @classmethod
     def upload_wordlist(self, name, wordlists):
 
         name = name.split("/")[-1]
@@ -216,34 +244,28 @@ class Hashcat(object):
 
 
 
-class Session(object):
-    def __init__(self, hashcat, name, crack_type, hash_file, hash_mode_id, wordlist_file, rule_file, mask_file, username_included):
-        self.hashcat = hashcat
-        self.name = name
-        self.crack_type = crack_type
-        self.hash_file = hash_file
-        self.hash_mode_id = hash_mode_id
-        self.rule_file = rule_file
-        self.wordlist_file = wordlist_file
-        self.mask_file = mask_file
-        self.username_included = username_included
+class Session(Model):
+    name = CharField(unique=True)
+    crack_type = CharField()
+    hash_file = CharField()
+    hash_mode_id = IntegerField()
+    rule_file = CharField(null=True)
+    wordlist_file = CharField(null=True)
+    mask_file = CharField(null=True)
+    username_included = BooleanField()
+    session_status = CharField()
+    time_started = DateTimeField(null=True)
 
-        # Session values before being started
-        self.session_status = "Not started"
+    class Meta:
+        database = database
 
-        self.hash_type = "N/A"
-        self.time_started = "N/A"
-        self.time_estimated = "N/A"
-        self.speed = "N/A"
-        self.recovered = "N/A"
-        self.progress = "0"
-
+    def setup(self):
         # File to store the processes output
         random_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
         self.result_file = os.path.join("/tmp", random_name+".cracked")
 
         # Get a list of hashes already cracked
-        cmd_line = [self.hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file, '--outfile-format', '2']
+        cmd_line = [Hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file, '--outfile-format', '2']
         if self.username_included:
             cmd_line += ["--username"]
         p = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -258,14 +280,22 @@ class Session(object):
             if m != None:
                 raise Exception("Wrong hash type")
 
+        self.hash_type = "N/A"
+        self.time_estimated = "N/A"
+        self.speed = "N/A"
+        self.recovered = "N/A"
+        self.progress = "0"
+
         self.current_cracked = sum(1 for line in open(self.result_file))
-        self.total_hashes = sum(1 for line in open(hash_file))
+        self.total_hashes = sum(1 for line in open(self.hash_file))
 
     def start(self):
         self.thread = threading.Thread(target=self.session_thread)
         self.thread.start()
 
         self.session_status = "Running"
+        self.time_started = datetime.utcnow()
+        self.save()
 
         # Little delay to ensure the process if properly launched
         time.sleep(1)
@@ -275,31 +305,33 @@ class Session(object):
     def session_thread(self):
         # Prepare regex to parse the main hashcat process output
         regex_list = [
-            ("hash_type", re.compile("^Hash\.Type\.\.\.\.\.\.: (.*)\s*$")),
-            ("speed", re.compile("^Speed\.Dev\.#1\.\.\.: (.*)\s*$")),
-            ("recovered", re.compile("^Recovered\.\.\.\.\.\.: (.*)\s*$")),
-            ("current_cracked", re.compile("^Recovered\.\.\.\.\.\.: (\d+)/\d+ .*\s*$")),
-            ("total_hashes", re.compile("^Recovered\.\.\.\.\.\.: \d+/(\d+) .*\s*$")),
+            ("hash_type", re.compile("^Hash\.Type\.+: (.*)\s*$")),
+            ("speed", re.compile("^Speed\.Dev\.#1\.+: (.*)\s*$")),
+            ("recovered", re.compile("^Recovered\.+: (.*)\s*$")),
+            ("current_cracked", re.compile("^Recovered\.+: (\d+)/\d+ .*\s*$")),
+            ("total_hashes", re.compile("^Recovered\.+: \d+/(\d+) .*\s*$")),
         ]
         if self.crack_type == "rule":
-            regex_list.append(("progress", re.compile("^Progress\.\.\.\.\.\.\.: \d+/\d+ \((\S+)%\)\s*$")))
-            regex_list.append(("time_estimated", re.compile("^Time\.Estimated\.: (.*)\s*$")))
+            regex_list.append(("progress", re.compile("^Progress\.+: \d+/\d+ \((\S+)%\)\s*$")))
+            regex_list.append(("time_estimated", re.compile("^Time\.Estimated\.+: (.*)\s*$")))
         elif self.crack_type == "mask":
-            regex_list.append(("progress", re.compile("^Input\.Mode\.\.\.\.\.:\s+Mask\s+\(\S+\)\s+\[\d+\]\s+\((\S+)%\)\s*$")))
+            regex_list.append(("progress", re.compile("^Input\.Mode\.+:\s+Mask\s+\(\S+\)\s+\[\d+\]\s+\((\S+)%\)\s*$")))
 
         self.time_started = str(datetime.now())
 
         # Command lines used to crack the passwords
         if self.crack_type == "rule":
-            cmd_line = [self.hashcat.binary, '--session', self.name, '--status', '-a', '0', '-m', str(self.hash_mode_id), self.hash_file, self.wordlist_file, '-r', self.rule_file]
+            cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '0', '-m', str(self.hash_mode_id), self.hash_file, self.wordlist_file, '-r', self.rule_file]
         if self.crack_type == "mask":
-            cmd_line = [self.hashcat.binary, '--session', self.name, '--status', '-a', '3', '-m', str(self.hash_mode_id), self.hash_file, self.mask_file]
+            cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '3', '-m', str(self.hash_mode_id), self.hash_file, self.mask_file]
         if self.username_included:
             cmd_line += ["--username"]
 
+        print("startup command : %s" % " ".join(cmd_line))
+
         self.session_process = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        self.update()
+        self.update_session()
 
         for line in self.session_process.stdout:
             line = line.decode()
@@ -307,9 +339,11 @@ class Session(object):
 
             if line == "Resumed":
                 self.session_status = "Running"
+                self.save()
 
             if line == "Paused":
                 self.session_status = "Paused"
+                self.save()
 
             for var_regex in regex_list:
                 var = var_regex[0]
@@ -319,11 +353,14 @@ class Session(object):
                 if m:
                     setattr(self, var, m.group(1))
 
+        print(self.session_process.returncode)
+
         # The cracking ended, set the parameters accordingly
         self.progress = "100"
         self.session_status = "Done"
         self.time_estimated = "N/A"
         self.speed = "N/A"
+        self.save()
 
     def details(self):
         # remove the previous result file
@@ -332,7 +369,7 @@ class Session(object):
         except:
             pass
 
-        cmd_line = [self.hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file, '--outfile-format', '2']
+        cmd_line = [Hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file, '--outfile-format', '2']
         if self.username_included:
             cmd_line += ["--username"]
         p = subprocess.Popen(cmd_line)
@@ -348,7 +385,7 @@ class Session(object):
             pass
 
         # get cracked password with their corresponsing username/hash
-        cmd_line = [self.hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file]
+        cmd_line = [Hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file]
         if self.username_included:
             cmd_line += ["--username", "--outfile-format", "2"]
         else:
@@ -360,7 +397,7 @@ class Session(object):
             "name": self.name,
             "crack_type": self.crack_type,
             "status": self.session_status,
-            "time_started": self.time_started,
+            "time_started": str(self.time_started),
             "time_estimated": self.time_estimated,
             "speed": self.speed,
             "recovered": self.recovered,
@@ -390,7 +427,7 @@ class Session(object):
     def cracked(self):
 
         # gather cracked passwords
-        cmd_line = [self.hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file]
+        cmd_line = [Hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file]
         if self.username_included:
             cmd_line += ["--username", "--outfile-format", "2"]
         else:
@@ -403,7 +440,7 @@ class Session(object):
     """
         Update the session
     """
-    def update(self):
+    def update_session(self):
         self.status()
 
     """
@@ -427,7 +464,7 @@ class Session(object):
             self.session_process.stdin.write(b'p')
             self.session_process.stdin.flush()
 
-            self.update()
+            self.update_session()
 
             time.sleep(0.1)
 
@@ -442,7 +479,7 @@ class Session(object):
             self.session_process.stdin.write(b'r')
             self.session_process.stdin.flush()
 
-            self.update()
+            self.update_session()
 
             time.sleep(0.1)
 
@@ -459,6 +496,7 @@ class Session(object):
         self.thread.join()
 
         self.session_status == "Aborted"
+        self.save()
 
 def analyse_password_file(path, username_included):
 

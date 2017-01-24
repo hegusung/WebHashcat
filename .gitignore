@@ -3,6 +3,8 @@ WebHashcat/db.sqlite3
 HashcatNode/*.crt
 HashcatNode/*.key
 HashcatNode/settings.ini
+HashcatNode/hashes/*
+HashcatNode/hashcatnode.db
 Wordlist/
 TODO
 
