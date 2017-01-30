@@ -5,6 +5,7 @@ HashcatNode/*.key
 HashcatNode/settings.ini
 HashcatNode/hashes/*
 HashcatNode/hashcatnode.db
+HashcatNode/hashcatnode.log
 Wordlist/
 TODO
 

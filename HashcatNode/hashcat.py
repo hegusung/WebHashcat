@@ -4,6 +4,7 @@ import sys
 import re
 import time
 import subprocess
+import logging
 from os import listdir
 from os.path import isfile, join
 from datetime import datetime
@@ -147,6 +148,8 @@ class Hashcat(object):
         session.setup()
         session.save()
 
+        logging.info("Session %s created" % name)
+
         return session
 
     """
@@ -162,6 +165,8 @@ class Hashcat(object):
         self.sessions[name].delete_instance()
 
         del self.sessions[name]
+
+        logging.info("Session %s removed" % name)
 
     """
         Reload sessions
@@ -198,6 +203,8 @@ class Hashcat(object):
 
         self.rules[name[:-5]] = path
 
+        logging.info("Rule file %s uploaded" % name)
+
     """
         Upload a new mask file
     """
@@ -219,6 +226,8 @@ class Hashcat(object):
         f.close()
 
         self.masks[name[:-7]] = path
+
+        logging.info("Mask file %s uploaded" % name)
 
     """
         Upload a new wordlist file
@@ -242,6 +251,7 @@ class Hashcat(object):
 
         self.wordlists[name[:-9]] = path
 
+        logging.info("Wordlist file %s uploaded" % name)
 
 
 class Session(Model):
@@ -328,6 +338,7 @@ class Session(Model):
             cmd_line += ["--username"]
 
         print("startup command : %s" % " ".join(cmd_line))
+        logging.debug("Session:%s, startup command:%s" % (self.name, " ".join(cmd_line)))
 
         self.session_process = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 

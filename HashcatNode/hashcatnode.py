@@ -1,16 +1,22 @@
 #!/usr/bin/python3
 import os
 import configparser
+import logging
 
 from httpapi import Server
 from hashcat import Hashcat
 
 def main():
+
+    # Config
+
     config = configparser.ConfigParser()
 
     current_dir = os.path.dirname(__file__)
 
     config.read(current_dir + os.sep + 'settings.ini')
+
+    loglevel_str = config["General"]["loglevel"]
 
     bind_address = config["Server"]["bind"]
     bind_port = config["Server"]["port"]
@@ -22,6 +28,28 @@ def main():
     rules_dir = config["Hashcat"]["rule_dir"]
     mask_dir = config["Hashcat"]["mask_dir"]
     wordlist_dir = config["Hashcat"]["wordlist_dir"]
+
+    # Logging
+
+    loglevel_dict = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+
+    logfile = os.path.dirname(__file__) + os.sep + 'hashcatnode.log'
+
+    logging.basicConfig(
+        filename=logfile,
+        format = '%(asctime)s\t%(levelname)s\t%(message)s',
+        level=loglevel_dict[loglevel_str]
+    )
+
+    # Startup
+
+    logging.info("Hashcat node starting")
 
     Hashcat.binary = binary
     Hashcat.rules_dir = rules_dir
