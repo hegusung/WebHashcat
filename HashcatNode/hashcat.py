@@ -13,7 +13,7 @@ import string
 import operator
 from peewee import Model, SqliteDatabase, CharField, DateTimeField, ForeignKeyField, IntegerField, BooleanField, TextField, BlobField
 
-database = SqliteDatabase("hashcatnode.db")
+database = SqliteDatabase(os.path.dirname(__file__) + os.sep + "hashcatnode.db")
 
 class Hashcat(object):
 
