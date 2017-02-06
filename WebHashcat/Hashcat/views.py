@@ -313,6 +313,36 @@ def export(request, node_name, session_name):
     return response
 
 @login_required
+def session_hashcat_output(request, node_name, session_name):
+    node = get_object_or_404(Node, name=node_name)
+
+    hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
+    hashcat_output = hashcat_api.get_hashcat_output(session_name)
+
+    if hashcat_output["response"] == "error":
+        return session(request, node_name, session_name, error_msg=hashcat_output["message"])
+
+    response = HttpResponse(hashcat_output["hashcat_output"], content_type='application/force-download') # mimetype is replaced by content_type for django 1.7
+    response['Content-Disposition'] = 'attachment; filename=%s' % "hashcat_output.txt"
+    return response
+
+@login_required
+def session_hashes(request, node_name, session_name):
+    node = get_object_or_404(Node, name=node_name)
+
+    hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
+    hashes_file = hashcat_api.get_hashes(session_name)
+
+    if hashes_file["response"] == "error":
+        return session(request, node_name, session_name, error_msg=hashes_file["message"])
+
+    response = HttpResponse(hashes_file["hashes"], content_type='application/force-download') # mimetype is replaced by content_type for django 1.7
+    response['Content-Disposition'] = 'attachment; filename=%s' % "hashes.txt"
+    return response
+
+
+
+@login_required
 def nodes(request):
 
     context = {}

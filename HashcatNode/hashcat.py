@@ -13,6 +13,8 @@ import random
 import string
 import operator
 from peewee import Model, SqliteDatabase, CharField, DateTimeField, ForeignKeyField, IntegerField, BooleanField, TextField, BlobField
+from fcntl import fcntl, F_GETFL, F_SETFL
+from os import O_NONBLOCK, read
 
 database = SqliteDatabase(os.path.dirname(__file__) + os.sep + "hashcatnode.db")
 
@@ -274,6 +276,12 @@ class Session(Model):
         random_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
         self.result_file = os.path.join("/tmp", random_name+".cracked")
 
+        # File to store the hashcat output
+        random_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
+        self.hashcat_output_file = os.path.join("/tmp", random_name+".hashcat")
+        open(self.hashcat_output_file,'a').close()
+
+
         # Get a list of hashes already cracked
         cmd_line = [Hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file, '--outfile-format', '2']
         if self.username_included:
@@ -317,9 +325,6 @@ class Session(Model):
         regex_list = [
             ("hash_type", re.compile("^Hash\.Type\.+: (.*)\s*$")),
             ("speed", re.compile("^Speed\.Dev\.#1\.+: (.*)\s*$")),
-            ("recovered", re.compile("^Recovered\.+: (.*)\s*$")),
-            ("current_cracked", re.compile("^Recovered\.+: (\d+)/\d+ .*\s*$")),
-            ("total_hashes", re.compile("^Recovered\.+: \d+/(\d+) .*\s*$")),
         ]
         if self.crack_type == "rule":
             regex_list.append(("progress", re.compile("^Progress\.+: \d+/\d+ \((\S+)%\)\s*$")))
@@ -337,14 +342,18 @@ class Session(Model):
         if self.username_included:
             cmd_line += ["--username"]
 
-        print("startup command : %s" % " ".join(cmd_line))
         logging.debug("Session:%s, startup command:%s" % (self.name, " ".join(cmd_line)))
+        with open(self.hashcat_output_file, "a") as f:
+            f.write("Command: %s\n" % " ".join(cmd_line))
 
-        self.session_process = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.session_process = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         self.update_session()
 
         for line in self.session_process.stdout:
+            with open(self.hashcat_output_file, "ab") as f:
+                f.write(line)
+
             line = line.decode()
             line = line.rstrip()
 
@@ -404,6 +413,9 @@ class Session(Model):
         p = subprocess.Popen(cmd_line)
         p.wait()
 
+        self.current_cracked = sum(1 for line in open(self.result_file))
+        self.total_hashes = sum(1 for line in open(self.hash_file))
+
         return {
             "name": self.name,
             "crack_type": self.crack_type,
@@ -411,13 +423,26 @@ class Session(Model):
             "time_started": str(self.time_started),
             "time_estimated": self.time_estimated,
             "speed": self.speed,
-            "recovered": self.recovered,
+            "recovered": "%d/%d (%d%%)" % (self.current_cracked, self.total_hashes, int(self.current_cracked/self.total_hashes*100)),
             "progress": self.progress,
             "results": open(self.result_file).read(),
             "top10_passwords": top10_pass,
             "password_lengths": pass_len,
             "password_charsets": pass_charset,
         }
+
+    """
+        Returns hashcat output file
+    """
+    def hashcat_output(self):
+        return open(self.hashcat_output_file).read()
+
+    """
+        Returns hashes file
+    """
+    def hashes(self):
+        return open(self.hash_file).read()
+
 
     """
         Cleanup the session before deleting it

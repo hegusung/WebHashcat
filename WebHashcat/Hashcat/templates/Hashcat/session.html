@@ -15,6 +15,9 @@
          Speed: {{ speed }}<br/>
          Recovered: {{ recovered }}<br/>
          Progress: {{ progress }}%<br/>
+         <br/>
+         <a href="{% url "Hashcat:session_hashes" node session %}"><button type="button" class="btn btn-xs">Hashes</button></a>
+         <a href="{% url "Hashcat:session_hashcat_output" node session %}"><button type="button" class="btn btn-xs">Hashcat log</button></a>
       </div>
    </div>
 

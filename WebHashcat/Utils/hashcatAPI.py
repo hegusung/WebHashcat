@@ -59,6 +59,13 @@ class HashcatAPI(object):
     def get_cracked_file(self, session_name):
         return self.send("/cracked/%s" % session_name)
 
+    def get_hashcat_output(self, session_name):
+        return self.send("/hashcatOutput/%s" % session_name)
+
+    def get_hashes(self, session_name):
+        return self.send("/hashes/%s" % session_name)
+
+
     def upload_rule(self, name, rule_file):
         payload = {
             "name": name,

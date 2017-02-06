@@ -35,6 +35,8 @@ class Server:
     def _route(self):
         self._app.add_url_rule("/hashcatInfo", "hashcatInfo", self._hashcatInfo, methods=["GET"])
         self._app.add_url_rule("/sessionInfo/<session_name>", "sessionInfo", self._sessionInfo, methods=["GET"])
+        self._app.add_url_rule("/hashcatOutput/<session_name>", "hashcatOutput", self._hashcatOutput, methods=["GET"])
+        self._app.add_url_rule("/hashes/<session_name>", "hashes", self._hashes, methods=["GET"])
         self._app.add_url_rule("/cracked/<session_name>", "cracked", self._cracked, methods=["GET"])
         self._app.add_url_rule("/createSession", "createSession", self._createSession, methods=["POST"])
         self._app.add_url_rule("/removeSession/<session_name>", "removeSession", self._removeSession, methods=["GET"])
@@ -126,6 +128,45 @@ class Server:
                 "response": "error",
                 "message": str(e),
             })
+
+    """
+        Returns session hashcat output
+    """
+    def _hashcatOutput(self, session_name):
+        try:
+            result = {}
+
+            result["hashcat_output"] = Hashcat.sessions[session_name].hashcat_output()
+            result["response"] = "ok"
+
+            return json.dumps(result)
+        except Exception as e:
+            traceback.print_exc()
+
+            return json.dumps({
+                "response": "error",
+                "message": str(e),
+            })
+
+    """
+        Returns session hashes
+    """
+    def _hashes(self, session_name):
+        try:
+            result = {}
+
+            result["hashes"] = Hashcat.sessions[session_name].hashes()
+            result["response"] = "ok"
+
+            return json.dumps(result)
+        except Exception as e:
+            traceback.print_exc()
+
+            return json.dumps({
+                "response": "error",
+                "message": str(e),
+            })
+
 
     """
         Returns the cracked passwords
