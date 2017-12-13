@@ -18,7 +18,9 @@ from django.contrib import admin
 from django.views.generic import RedirectView
 
 urlpatterns = [
-    url(r'^', include('Hashcat.urls')),
+    url(r'', include('Hashcat.urls')),
     url(r'^Auth/', include('Auth.urls', namespace='Auth')),
+    url(r'^Nodes/', include('Nodes.urls', namespace='Nodes')),
     url(r'^Hashcat/', include('Hashcat.urls', namespace='Hashcat')),
+    url(r'^api/', include('API.urls', namespace='API')),
 ]

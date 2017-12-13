@@ -4,72 +4,114 @@
    <div class="row">
       <div class="col-md-6">
 
-         <div class="panel panel-success">
+         <div class="panel panel-primary">
             <div class="panel-heading">
-               <h2 class="panel-title">{{ node_name }}</h2>
+               <div style="float: right;">
+                  <button type="button" class="btn btn-xs btn-success" data-toggle="modal" data-target="#upload_rule">Upload</button>
+               </div>
+               <h2 class="panel-title">Rules</h2>
             </div>
             <div class="panel-body">
-               Hostname: {{ hostname }}<br/>
-               Port: {{ port }}<br/>
-               Hashcat version: {{ version }}<br/>
-            </div>
-         </div>
 
-         <h3> Rules <button type="button" class="btn btn-xs" data-toggle="modal" data-target="#upload_rule">Upload</button></h3>
-         <table class="table table-striped table-condensed">
+         <table class="panel-body table table-striped table-condensed">
             <tr>
                <td><b>Name</b></td>
+               <td><b>MD5</b></td>
+               <td></td>
             </tr>
             {% for rule in rule_list %}
             <tr>
-               <td>{{ rule }}</td>
+               <td>{{ rule.name }}</td>
+               <td>{{ rule.md5 }}</td>
+               <td>
+                     <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="remove"></input>
+                        <input type="hidden" name="filetype" value="rule"></input>
+                        <input type="hidden" name="filename" value="{{ rule.name }}"></input>
+                        <button type="submit" class="btn btn-danger btn-xs confirm"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></button>
+                     </form>
+               </td>
+                     
             </tr>
             {% endfor %}
          </table>
 
-         <h3> Masks <button type="button" class="btn btn-xs" data-toggle="modal" data-target="#upload_mask">Upload</button></h3>
+            </div>
+         </div>
+
+         <div class="panel panel-primary">
+            <div class="panel-heading">
+               <div style="float: right;">
+                  <button type="button" class="btn btn-xs btn-success" data-toggle="modal" data-target="#upload_mask">Upload</button>
+               </div>
+               <h2 class="panel-title">Masks</h2>
+            </div>
+            <div class="panel-body">
          <table class="table table-striped table-condensed">
             <tr>
                <td><b>Name</b></td>
+               <td><b>MD5</b></td>
+               <td></td>
             </tr>
             {% for mask in mask_list %}
             <tr>
-               <td>{{ mask }}</td>
+               <td>{{ mask.name }}</td>
+               <td>{{ mask.md5 }}</td>
+               <td>
+                     <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="remove"></input>
+                        <input type="hidden" name="filetype" value="mask"></input>
+                        <input type="hidden" name="filename" value="{{ mask.name }}"></input>
+                        <button type="submit" class="btn btn-danger btn-xs confirm"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></button>
+                     </form>
+               </td>
             </tr>
             {% endfor %}
          </table>
-
-         <h3> Wordlists <button type="button" class="btn btn-xs" data-toggle="modal" data-target="#upload_wordlist">Upload</button></h3>
-         <table class="table table-striped table-condensed">
-            <tr>
-               <td><b>Name</b></td>
-            </tr>
-            {% for wordlist in wordlist_list %}
-            <tr>
-               <td>{{ wordlist }}</td>
-            </tr>
-            {% endfor %}
-         </table>
+            </div>
+         </div>
 
       </div>
       <div class="col-md-6">
 
-         <h3> Hash Types</h3> 
+         <div class="panel panel-primary">
+            <div class="panel-heading">
+               <div style="float: right;">
+                  <button type="button" class="btn btn-xs btn-success" data-toggle="modal" data-target="#upload_wordlist">Upload</button>
+               </div>
+               <h2 class="panel-title">Wordlists</h2>
+            </div>
+            <div class="panel-body">
+
          <table class="table table-striped table-condensed">
             <tr>
-               <td><b>id</b></td>
                <td><b>Name</b></td>
-               <td><b>Description</b></td>
+               <td><b>Lines</b></td>
+               <td><b>MD5</b></td>
+               <td></td>
             </tr>
-            {% for hash_type in hash_type_list %}
+            {% for wordlist in wordlist_list %}
             <tr>
-               <td>{{ hash_type.id }}</td>
-               <td>{{ hash_type.name }}</td>
-               <td>{{ hash_type.description }}</td>
+               <td>{{ wordlist.name }}</td>
+               <td>{{ wordlist.lines }}</td>
+               <td>{{ wordlist.md5 }}</td>
+               <td>
+                     <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="remove"></input>
+                        <input type="hidden" name="filetype" value="wordlist"></input>
+                        <input type="hidden" name="filename" value="{{ wordlist.name }}"></input>
+                        <button type="submit" class="btn btn-danger btn-xs confirm"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></button>
+                     </form>
+               </td>
             </tr>
             {% endfor %}
          </table>
 
+            </div>
+         </div>
       </div>
    </div>
 
@@ -86,8 +128,6 @@
 
             <form action="{% url "Hashcat:upload_rule" %}" enctype="multipart/form-data" method="post">
             {% csrf_token %}
-            <input type="hidden" id="node" name="node" value="{{ node_name }}">
-
             <label for="name">Name</label>
             <input type="text" class="form-control" id="name" name="name">
             </br>
@@ -116,8 +156,6 @@
 
             <form action="{% url "Hashcat:upload_mask" %}" enctype="multipart/form-data" method="post">
             {% csrf_token %}
-            <input type="hidden" id="node" name="node" value="{{ node_name }}">
-
             <label for="name">Name</label>
             <input type="text" class="form-control" id="name" name="name">
             </br>
@@ -146,8 +184,6 @@
 
             <form action="{% url "Hashcat:upload_wordlist" %}" enctype="multipart/form-data" method="post">
             {% csrf_token %}
-            <input type="hidden" id="node" name="node" value="{{ node_name }}">
-
             <label for="name">Name</label>
             <input type="text" class="form-control" id="name" name="name">
             </br>
@@ -162,6 +198,15 @@
        </div>
      </div>
    </div>
+
+   <script type="text/javascript">
+      $(function() {
+          $('.confirm').click(function() {
+              return window.confirm("Are you sure?");
+          });
+      });
+   </script>
+
 
 
 {% endblock %}

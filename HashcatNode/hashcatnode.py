@@ -28,6 +28,7 @@ def main():
     rules_dir = config["Hashcat"]["rule_dir"]
     mask_dir = config["Hashcat"]["mask_dir"]
     wordlist_dir = config["Hashcat"]["wordlist_dir"]
+    workload_profile = config["Hashcat"]["workload_profile"]
 
     # Logging
 
@@ -55,6 +56,7 @@ def main():
     Hashcat.rules_dir = rules_dir
     Hashcat.wordlist_dir = wordlist_dir
     Hashcat.mask_dir = mask_dir
+    Hashcat.workload_profile = workload_profile
 
     Hashcat.parse_version()
     Hashcat.parse_help()

@@ -12,10 +12,10 @@
       </tr>
       {% for node in node_list %}
       <tr>
-         <td><a href="{% url "Hashcat:node" node.name %}">{{ node.name }}</a></td>
+         <td><a href="{% url "Nodes:node" node.name %}">{{ node.name }}</a></td>
          <td>{{ node.hostname }}</td>
          <td>{{ node.port }}</td>
-         <td><a href="{% url "Hashcat:delete_node" node.name %}"><button type="button" class="btn btn-primary btn-xs"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span>Remove</button><a/></td>
+         <td><a href="{% url "Nodes:delete_node" node.name %}"><button type="button" class="btn btn-primary btn-xs"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span>Remove</button><a/></td>
       </tr>
       {% endfor %}
    </table>
@@ -32,7 +32,7 @@
            <h4 class="modal-title" id="myModalLabel">New node</h4>
          </div>
 
-         <form action="{% url "Hashcat:new_node" %}" enctype="multipart/form-data" method="post">
+         <form action="{% url "Nodes:new_node" %}" enctype="multipart/form-data" method="post">
             {% csrf_token %}
 
             <div class="modal-body">

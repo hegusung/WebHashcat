@@ -13,15 +13,32 @@
 
     <title>WebHashcat</title>
 
-    <!-- Bootstrap core CSS -->
+    <!-- Libraries CSS -->
     <link href="{% static "css/bootstrap.min.css" %}" rel="stylesheet">
+    <link href="{% static "css/dataTables.bootstrap.min.css" %}" rel="stylesheet">
+    <link type="text/css" href="{% static "css/buttons.bootstrap.min.css" %}" rel="stylesheet" />
+    <!-- Custom styles for this template -->
     <link href="{% static "css/dashboard.css" %}" rel="stylesheet">
+    <link href="{% static "css/custom.css" %}" rel="stylesheet">
+    <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+
 
     <!-- Bootstrap core JavaScript
     ================================================== -->
     <!-- Placed at the end of the document so the pages load faster -->
     <script src="{% static "js/jquery.min.js" %}"></script>
     <script src="{% static "js/bootstrap.min.js" %}"></script>
+    <script src="{% static "js/jquery.dataTables.min.js" %}"></script>
+    <script src="{% static "js/dataTables.bootstrap.min.js" %}"></script>
+    <script src="{% static "js/dataTables.buttons.min.js" %}"></script>
+    <script src="{% static "js/buttons.bootstrap.min.js" %}"></script>
+    <script src="{% static "js/buttons.html5.min.js" %}"></script>
+    <script src="{% static "js/canvasjs.min.js" %}"></script>
+    <script src="{% static "js/jquery.canvasjs.min.js" %}"></script>
+    <script src="{% static "js/jqueryFileTree.js" %}"></script>
+    <script src="{% static "js/highcharts.js" %}"></script>
+    <script src="{% static "js/exporting.js" %}"></script>
+
   </head>
 
   <body>
@@ -39,10 +56,15 @@
         </div>
         <div id="navbar" class="navbar-collapse collapse">
           <ul class="nav navbar-nav">
-            {% if Section == "Sessions" or Section == "Nodes" %}
+            {% if Section == "Hashes" or Section == "Files" or Section == "Hashfile" %}
                <li class="active"><a href="{% url "Hashcat:index" %}">Hashcat</a></li>
             {% else %}
                <li ><a href="{% url "Hashcat:index" %}">Hashcat</a></li>
+            {% endif %}
+            {% if Section == "Nodes" %}
+               <li class="active"><a href="{% url "Nodes:nodes" %}">Nodes</a></li>
+            {% else %}
+               <li ><a href="{% url "Nodes:nodes" %}">Nodes</a></li>
             {% endif %}
           </ul>
         </div>
@@ -53,17 +75,25 @@
       <div class="row">
 
         <div class="col-sm-3 col-md-2 sidebar">
-          {% if Section == "Sessions" or Section == "Nodes" %}
+          {% if Section == "Hashes" or Section == "Files" or Section == "Hashfile" %}
           <ul class="nav nav-sidebar">
-            {% if Section == "Sessions" %}
-               <li class="active"><a href="{% url "Hashcat:index" %}">Sessions</a></li>
+            {% if Section == "Hashes" or Section == "Hashfile" %}
+               <li class="active"><a href="{% url "Hashcat:hashfiles" %}">Hashfiles</a></li>
             {% else %}
-               <li ><a href="{% url "Hashcat:index" %}">Sessions</a></li>
+               <li ><a href="{% url "Hashcat:hashfiles" %}">Hashfiles</a></li>
             {% endif %}
-            {% if Section == "Nodes" %}
-               <li class="active"><a href="{% url "Hashcat:nodes" %}">Nodes</a></li>
+            {% if Section == "Files" %}
+               <li class="active"><a href="{% url "Hashcat:files" %}">Files</a></li>
             {% else %}
-               <li ><a href="{% url "Hashcat:nodes" %}">Nodes</a></li>
+               <li ><a href="{% url "Hashcat:files" %}">Files</a></li>
+            {% endif %}
+          {% endif %}
+          {% if Section == "Nodes" %}
+          <ul class="nav nav-sidebar">
+            {% if Section == "Nodes" %}
+               <li class="active"><a href="{% url "Nodes:nodes" %}">Nodes</a></li>
+            {% else %}
+               <li ><a href="{% url "Nodes:nodes" %}">Nodes</a></li>
             {% endif %}
           </ul> 
           {% endif %}
@@ -75,6 +105,32 @@
           </br>
           <div class="alert alert-danger" role="alert">{{ error_message }}</div>
           {% endif %}
+          {% if messages %}
+            {% for message in messages %}
+               {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}
+               <div class="alert alert-danger alert-dismissable fade in">
+                  <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+                  <strong>Error!</strong> {{ message }}
+               </div>
+               {% elif message.level == DEFAULT_MESSAGE_LEVELS.WARNING %}
+               <div class="alert alert-warning alert-dismissable fade in">
+                  <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+                  {{ message }}
+               </div>
+               {% elif message.level == DEFAULT_MESSAGE_LEVELS.SUCCESS %}
+               <div class="alert alert-success alert-dismissable fade in">
+                  <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+                  {{ message }}
+               </div>
+               {% else %}
+               <div class="alert alert-info alert-dismissable fade in">
+                  <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+                  {{ message }}
+               </div>
+               {% endif %}
+            {% endfor %}
+         {% endif %}
+
 
           {% block content %}
           <div class="starter-template">

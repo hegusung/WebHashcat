@@ -12,7 +12,7 @@ import threading
 import random
 import string
 import operator
-from peewee import Model, SqliteDatabase, CharField, DateTimeField, ForeignKeyField, IntegerField, BooleanField, TextField, BlobField
+from peewee import Model, SqliteDatabase, CharField, DateTimeField, ForeignKeyField, IntegerField, BooleanField, TextField, BlobField, FloatField
 from fcntl import fcntl, F_GETFL, F_SETFL
 from os import O_NONBLOCK, read
 
@@ -25,6 +25,7 @@ class Hashcat(object):
     masks = {}
     wordlists = {}
     sessions = {}
+    workload_profile = 3 # default hashcat value
 
     """
         Parse hashcat version
@@ -71,36 +72,63 @@ class Hashcat(object):
     """
     @classmethod
     def parse_rules(self):
-        rule_files = [join(self.rules_dir, f) for f in listdir(self.rules_dir) if isfile(join(self.rules_dir, f))]
+        self.rules = {}
 
-        for rule_file in rule_files:
-            if rule_file.endswith(".rule"):
-                rule_name = rule_file.split("/")[-1][:-5]
-                self.rules[rule_name] = rule_file
+        path = os.path.join(self.rules_dir, "*")
+
+        # use md5sum instead of python code for performance issues on a big file
+        result = subprocess.run('md5sum %s' % path, shell=True, stdout=subprocess.PIPE).stdout.decode()
+
+        for line in result.split("\n"):
+            items = line.split()
+            if len(items) == 2:
+                self.rules[items[1].split("/")[-1]] = {
+                        "name": items[1].split("/")[-1],
+                        "md5": items[0],
+                        "path": items[1],
+                    }
 
     """
         Parse wordlist directory
     """
     @classmethod
     def parse_wordlists(self):
-        wordlist_files = [join(self.wordlist_dir, f) for f in listdir(self.wordlist_dir) if isfile(join(self.wordlist_dir, f))]
+        self.wordlists = {}
 
-        for wordlist_file in wordlist_files:
-            if wordlist_file.endswith(".wordlist"):
-                wordlist_name = wordlist_file.split("/")[-1][:-1*len(".wordlist")]
-                self.wordlists[wordlist_name] = wordlist_file
+        path = os.path.join(self.wordlist_dir, "*")
+
+        # use md5sum instead of python code for performance issues on a big file
+        result = subprocess.run('md5sum %s' % path, shell=True, stdout=subprocess.PIPE).stdout.decode()
+
+        for line in result.split("\n"):
+            items = line.split()
+            if len(items) == 2:
+                self.wordlists[items[1].split("/")[-1]] = {
+                        "name": items[1].split("/")[-1],
+                        "md5": items[0],
+                        "path": items[1],
+                    }
 
     """
         Parse mask directory
     """
     @classmethod
     def parse_masks(self):
-        mask_files = [join(self.mask_dir, f) for f in listdir(self.mask_dir) if isfile(join(self.mask_dir, f))]
+        self.masks = {}
 
-        for mask_file in mask_files:
-            if mask_file.endswith(".hcmask"):
-                mask_name = mask_file.split("/")[-1][:-1*len(".hcmask")]
-                self.masks[mask_name] = mask_file
+        path = os.path.join(self.mask_dir, "*")
+
+        # use md5sum instead of python code for performance issues on a big file
+        result = subprocess.run('md5sum %s' % path, shell=True, stdout=subprocess.PIPE).stdout.decode()
+
+        for line in result.split("\n"):
+            items = line.split()
+            if len(items) == 2:
+                self.masks[items[1].split("/")[-1]] = {
+                        "name": items[1].split("/")[-1],
+                        "md5": items[0],
+                        "path": items[1],
+                    }
 
     """
         Create a new session
@@ -112,32 +140,38 @@ class Hashcat(object):
             raise Exception("This session name has already been used")
 
         if not hash_mode_id in self.hash_modes:
-            raise Exception("Wrong hash mode")
+            raise Exception("Inexistant hash mode, did you upgraded hashcat ?")
 
-        if not crack_type in ["rule", "mask"]:
-            raise Exception("Unsupported cracking type")
+        if not crack_type in ["dictionary", "mask"]:
+            raise Exception("Unsupported cracking type: %s" % crack_type)
 
-        if crack_type == "rule":
-            if rule == None or not rule in self.rules:
-                raise Exception("Wrong rule")
-            rule_path = self.rules[rule]
+        if crack_type == "dictionary":
+            if rule != None and not rule in self.rules:
+                raise Exception("Inexistant rule, did you synchronise the files on your node ?")
+            elif rule == None:
+                rule_path = None
+            else:
+                rule_path = self.rules[rule]["path"]
 
             if wordlist == None or not wordlist in self.wordlists:
-                raise Exception("Wrong wordlist")
-            wordlist_path = self.wordlists[wordlist]
+                raise Exception("Inexistant wordlist, did you synchronise the files on your node ?")
+            wordlist_path = self.wordlists[wordlist]["path"]
 
             mask_path = None
         elif crack_type == "mask":
             if mask == None or not mask in self.masks:
-                raise Exception("Wrong mask")
-            mask_path = self.masks[mask]
+                raise Exception("Inexistant mask, did you synchronise the files on your node ?")
+            mask_path = self.masks[mask]["path"]
             rule_path = None
             wordlist_path = None
+
+        pot_file = os.path.join(os.path.dirname(__file__), "potfiles", ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".potfile")
 
         session = Session(
             name=name,
             crack_type=crack_type,
             hash_file=hash_file,
+            pot_file = pot_file,
             hash_mode_id=hash_mode_id,
             wordlist_file=wordlist_path,
             rule_file=rule_path,
@@ -145,6 +179,7 @@ class Hashcat(object):
             username_included=username_included,
             session_status="Not started",
             time_started=None,
+            progress=0,
         )
         self.sessions[session.name] = session
         session.setup()
@@ -194,16 +229,19 @@ class Hashcat(object):
         if not name.endswith(".rule"):
             name += ".rule"
 
-        if name[:-5] in self.rules:
-            raise Exception("This rule name is already used")
-
         path = os.path.join(self.rules_dir, name)
 
-        f = open(path, "w")
+        if name in self.rules:
+            try:
+                os.remove(path)
+            except Exception as e:
+                pass
+
+        f = open(path, "wb")
         f.write(rules)
         f.close()
 
-        self.rules[name[:-5]] = path
+        self.parse_rules()
 
         logging.info("Rule file %s uploaded" % name)
 
@@ -218,16 +256,19 @@ class Hashcat(object):
         if not name.endswith(".hcmask"):
             name += ".hcmask"
 
-        if name[:-7] in self.masks:
-            raise Exception("This mask name is already used")
-
         path = os.path.join(self.mask_dir, name)
 
-        f = open(path, "w")
+        if name in self.masks:
+            try:
+                os.remove(path)
+            except Exception as e:
+                pass
+
+        f = open(path, "wb")
         f.write(masks)
         f.close()
 
-        self.masks[name[:-7]] = path
+        self.parse_masks()
 
         logging.info("Mask file %s uploaded" % name)
 
@@ -242,16 +283,19 @@ class Hashcat(object):
         if not name.endswith(".wordlist"):
             name += ".wordlist"
 
-        if name[:-9] in self.wordlists:
-            raise Exception("This wordlist name is already used")
-
         path = os.path.join(self.wordlist_dir, name)
 
-        f = open(path, "w")
+        if name in self.wordlists:
+            try:
+                os.remove(path)
+            except Exception as e:
+                pass
+
+        f = open(path, "wb")
         f.write(wordlists)
         f.close()
 
-        self.wordlists[name[:-9]] = path
+        self.parse_wordlists()
 
         logging.info("Wordlist file %s uploaded" % name)
 
@@ -260,6 +304,7 @@ class Session(Model):
     name = CharField(unique=True)
     crack_type = CharField()
     hash_file = CharField()
+    pot_file = CharField()
     hash_mode_id = IntegerField()
     rule_file = CharField(null=True)
     wordlist_file = CharField(null=True)
@@ -267,6 +312,7 @@ class Session(Model):
     username_included = BooleanField()
     session_status = CharField()
     time_started = DateTimeField(null=True)
+    progress = FloatField()
 
     class Meta:
         database = database
@@ -281,31 +327,10 @@ class Session(Model):
         self.hashcat_output_file = os.path.join("/tmp", random_name+".hashcat")
         open(self.hashcat_output_file,'a').close()
 
-
-        # Get a list of hashes already cracked
-        cmd_line = [Hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file, '--outfile-format', '2']
-        if self.username_included:
-            cmd_line += ["--username"]
-        p = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = p.communicate()
-
-        # Check if the hashes are correct
-        wrong_hash_type_regex = re.compile("^WARNING: .*: Line-length exception$")
-
-        for line in stdout.decode().split('\n'):
-            line = line.rstrip()
-            m = wrong_hash_type_regex.match(line)
-            if m != None:
-                raise Exception("Wrong hash type")
-
         self.hash_type = "N/A"
         self.time_estimated = "N/A"
         self.speed = "N/A"
         self.recovered = "N/A"
-        self.progress = "0"
-
-        self.current_cracked = sum(1 for line in open(self.result_file))
-        self.total_hashes = sum(1 for line in open(self.hash_file))
 
     def start(self):
         self.thread = threading.Thread(target=self.session_thread)
@@ -326,7 +351,7 @@ class Session(Model):
             ("hash_type", re.compile("^Hash\.Type\.+: (.*)\s*$")),
             ("speed", re.compile("^Speed\.Dev\.#1\.+: (.*)\s*$")),
         ]
-        if self.crack_type == "rule":
+        if self.crack_type == "dictionary":
             regex_list.append(("progress", re.compile("^Progress\.+: \d+/\d+ \((\S+)%\)\s*$")))
             regex_list.append(("time_estimated", re.compile("^Time\.Estimated\.+: (.*)\s*$")))
         elif self.crack_type == "mask":
@@ -335,13 +360,21 @@ class Session(Model):
         self.time_started = str(datetime.now())
 
         # Command lines used to crack the passwords
-        if self.crack_type == "rule":
-            cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '0', '-m', str(self.hash_mode_id), self.hash_file, self.wordlist_file, '-r', self.rule_file]
+        if self.crack_type == "dictionary":
+            if self.rule_file != None:
+                cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '0', '-m', str(self.hash_mode_id), self.hash_file, self.wordlist_file, '-r', self.rule_file]
+            else:
+                cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '0', '-m', str(self.hash_mode_id), self.hash_file, self.wordlist_file]
         if self.crack_type == "mask":
             cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '3', '-m', str(self.hash_mode_id), self.hash_file, self.mask_file]
         if self.username_included:
             cmd_line += ["--username"]
+        # workload profile
+        cmd_line += ["--workload-profile", Hashcat.workload_profile]
+        # set pot file
+        cmd_line += ["--potfile-path", self.pot_file]
 
+        print("Session:%s, startup command:%s" % (self.name, " ".join(cmd_line)))
         logging.debug("Session:%s, startup command:%s" % (self.name, " ".join(cmd_line)))
         with open(self.hashcat_output_file, "a") as f:
             f.write("Command: %s\n" % " ".join(cmd_line))
@@ -373,63 +406,62 @@ class Session(Model):
                 if m:
                     setattr(self, var, m.group(1))
 
-        print(self.session_process.returncode)
-
         # The cracking ended, set the parameters accordingly
-        self.progress = "100"
         self.session_status = "Done"
         self.time_estimated = "N/A"
         self.speed = "N/A"
         self.save()
 
     def details(self):
-        # remove the previous result file
-        try:
-            os.remove(self.result_file)
-        except:
-            pass
-
-        cmd_line = [Hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file, '--outfile-format', '2']
-        if self.username_included:
-            cmd_line += ["--username"]
-        p = subprocess.Popen(cmd_line)
-        p.wait()
-
-        # parse the result file
-        top10_pass, pass_len, pass_charset = analyse_password_file(self.result_file, self.username_included)
-
-        # remove the previous result file
-        try:
-            os.remove(self.result_file)
-        except:
-            pass
-
-        # get cracked password with their corresponsing username/hash
-        cmd_line = [Hashcat.binary, '--show', '-m', str(self.hash_mode_id), self.hash_file, '-o', self.result_file]
-        if self.username_included:
-            cmd_line += ["--username", "--outfile-format", "2"]
-        else:
-            cmd_line += ["--outfile-format", "3"]
-        p = subprocess.Popen(cmd_line)
-        p.wait()
-
-        self.current_cracked = sum(1 for line in open(self.result_file))
-        self.total_hashes = sum(1 for line in open(self.hash_file))
-
         return {
             "name": self.name,
             "crack_type": self.crack_type,
+            "rule": self.rule_file.split("/")[-1][:-5] if self.rule_file else None,
+            "mask": self.mask_file.split("/")[-1][:-7] if self.mask_file else None,
+            "wordlist": self.wordlist_file.split("/")[-1][:-1*len(".wordlist")] if self.wordlist_file else None,
             "status": self.session_status,
             "time_started": str(self.time_started),
             "time_estimated": self.time_estimated,
             "speed": self.speed,
-            "recovered": "%d/%d (%d%%)" % (self.current_cracked, self.total_hashes, int(self.current_cracked/self.total_hashes*100)),
             "progress": self.progress,
-            "results": open(self.result_file).read(),
-            "top10_passwords": top10_pass,
-            "password_lengths": pass_len,
-            "password_charsets": pass_charset,
         }
+
+    """
+        Returns the first 100000 lines from the potfile starting from a specific line
+    """
+    def get_potfile(self, from_line):
+        line_count = 0
+        selected_line_count = 0
+        potfile_data = ""
+        complete = True
+        if os.path.exists(self.pot_file):
+            for line in open(self.pot_file):
+                if not line.endswith("\n"):
+                    complete = True
+                    break
+
+                if line_count >= from_line:
+                    potfile_data += line
+                    selected_line_count += 1
+
+                if selected_line_count >= 100000:
+                    complete = False
+                    break
+
+                line_count += 1
+
+            return {
+                "line_count": selected_line_count,
+                "remaining_data": not complete,
+                "potfile_data": potfile_data,
+            }
+        else:
+            return {
+                "line_count": 0,
+                "remaining_data": False,
+                "potfile_data": "",
+            }
+
 
     """
         Returns hashcat output file
@@ -448,12 +480,22 @@ class Session(Model):
         Cleanup the session before deleting it
     """
     def remove(self):
+        self.quit()
+
         try:
             os.remove(self.result_file)
         except:
             pass
         try:
+            os.remove(self.pot_file)
+        except:
+            pass
+        try:
             os.remove(self.hash_file)
+        except:
+            pass
+        try:
+            os.remove(self.hashcat_output_file)
         except:
             pass
 
@@ -468,6 +510,7 @@ class Session(Model):
             cmd_line += ["--username", "--outfile-format", "2"]
         else:
             cmd_line += ["--outfile-format", "3"]
+        cmd_line += ["--potfile-path", self.pot_file]
         p = subprocess.Popen(cmd_line)
         p.wait()
 
@@ -531,114 +574,5 @@ class Session(Model):
 
         self.thread.join()
 
-        self.session_status == "Aborted"
+        self.session_status = "Aborted"
         self.save()
-
-def analyse_password_file(path, username_included):
-
-    top_passwords = {}
-    password_lengths = {}
-    password_charsets = {}
-
-    f = open(path)
-
-    for line in f:
-        password = line.rstrip()
-        if username_included:
-            password = ":".join(password.split(":")[1:])
-
-
-        if not password in top_passwords:
-            top_passwords[password] = 1
-        else:
-            top_passwords[password] += 1
-
-        pass_len, charset, _, _, _ = analyze_password(password)
-
-        if not pass_len in password_lengths:
-            password_lengths[pass_len] = 1
-        else:
-            password_lengths[pass_len] += 1
-
-        if not charset in password_charsets:
-            password_charsets[charset] = 1
-        else:
-            password_charsets[charset] += 1
-
-    f.close()
-
-    top10_pass = sorted(top_passwords.items(), key=operator.itemgetter(1), reverse=True)[:10]
-    top10_len = sorted(password_lengths.items(), key=operator.itemgetter(1), reverse=True)[:10]
-    top10_charset = sorted(password_charsets.items(), key=operator.itemgetter(1), reverse=True)[:10]
-
-    return top10_pass, top10_len, top10_charset
-
-# This function is taken from https://github.com/iphelix/pack
-
-def analyze_password(password):
-
-    # Password length
-    pass_length = len(password)
-
-    # Character-set and policy counters
-    digit = 0
-    lower = 0
-    upper = 0
-    special = 0
-
-    simplemask = list()
-    advancedmask_string = ""
-
-    # Detect simple and advanced masks
-    for letter in password:
-
-        if letter in string.digits:
-            digit += 1
-            advancedmask_string += "?d"
-            if not simplemask or not simplemask[-1] == 'digit': simplemask.append('digit')
-
-        elif letter in string.ascii_lowercase:
-            lower += 1
-            advancedmask_string += "?l"
-            if not simplemask or not simplemask[-1] == 'string': simplemask.append('string')
-
-
-        elif letter in string.ascii_uppercase:
-            upper += 1
-            advancedmask_string += "?u"
-            if not simplemask or not simplemask[-1] == 'string': simplemask.append('string')
-
-        else:
-            special += 1
-            advancedmask_string += "?s"
-            if not simplemask or not simplemask[-1] == 'special': simplemask.append('special')
-
-
-    # String representation of masks
-    simplemask_string = ''.join(simplemask) if len(simplemask) <= 3 else 'othermask'
-
-    # Policy
-    policy = (digit,lower,upper,special)
-
-    # Determine character-set
-    if   digit and not lower and not upper and not special: charset = 'numeric'
-    elif not digit and lower and not upper and not special: charset = 'loweralpha'
-    elif not digit and not lower and upper and not special: charset = 'upperalpha'
-    elif not digit and not lower and not upper and special: charset = 'special'
-
-    elif not digit and lower and upper and not special:     charset = 'mixedalpha'
-    elif digit and lower and not upper and not special:     charset = 'loweralphanum'
-    elif digit and not lower and upper and not special:     charset = 'upperalphanum'
-    elif not digit and lower and not upper and special:     charset = 'loweralphaspecial'
-    elif not digit and not lower and upper and special:     charset = 'upperalphaspecial'
-    elif digit and not lower and not upper and special:     charset = 'specialnum'
-
-    elif not digit and lower and upper and special:         charset = 'mixedalphaspecial'
-    elif digit and not lower and upper and special:         charset = 'upperalphaspecialnum'
-    elif digit and lower and not upper and special:         charset = 'loweralphaspecialnum'
-    elif digit and lower and upper and not special:         charset = 'mixedalphanum'
-    else:                                                   charset = 'all'
-
-    return (pass_length, charset, simplemask_string, advancedmask_string, policy)
-
-

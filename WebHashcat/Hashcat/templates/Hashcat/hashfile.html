@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+   <div class="row">
+      <div class="col-md-6">
+         <div class="panel panel-primary">
+            <div class="panel-heading">
+
+               <div style="float: right;">
+                  <a href="{% url "Hashcat:export_cracked" hashfile.id %}" ><button type="submit" class="btn btn-success btn-xs confirm"><span class='glyphicon glyphicon-download-alt' ></span> Cracked</button></a>
+                  <a href="{% url "Hashcat:export_uncracked" hashfile.id %}" ><button type="submit" class="btn btn-danger btn-xs confirm"><span class='glyphicon glyphicon-download-alt' ></span> Uncracked</button></a>
+                  <a href="{% url "Hashcat:csv_masks" hashfile.id %}" ><button type="submit" class="btn btn-warning btn-xs confirm"><span class='glyphicon glyphicon-download-alt' ></span> Masks</button></a>
+               </div>
+
+               <h2 class="panel-title">{{ hashfile.name }}</h2>
+            </div>
+            <div class="panel-body">
+               Hash type: {{ hash_type }}<br/>
+               Lines: {{ lines }}<br/>
+               Recovered: {{ recovered }}<br/>
+            </div>
+         </div>
+
+         <table id="hashfile_table" class="table table-striped">
+            <thead>
+            <tr>
+               {% if hashfile.username_included %}
+               <td><b>Username</b></td>
+               {% else %}
+               <td><b>Hash</b></td>
+               {% endif %}
+               <td><b>Password</b></td>
+            </tr>
+            </thead>
+         </table>
+      </div>
+
+      <script type="text/javascript">
+   /* Formatting function for row details - modify as you need */
+
+           $(document).ready( function () {
+               // datatable
+               var hashfile_table = $('#hashfile_table').DataTable({
+                  "processing": true,
+                  "serverSide": true,
+                  "pageLength" : 25,
+                  "columnDefs": [
+                      { "width": "50%", "targets": 0},
+                      { "width": "50%", "targets": 1},
+                  ],
+                  "ajax": {
+                     "url": "{% url 'API:api_hashfile_cracked' hashfile.id %}",
+                  },
+                  "order": [[0, 'asc']]
+               });
+         });
+
+      </script>
+
+
+
+      <div class="col-md-6">
+         <div class="panel panel-primary">
+            <div class="panel-heading">
+               <h2 class="panel-title">Top passwords</h2>
+            </div>
+            <div id="top_password_graph" class="panel-body"></div>
+         </div>
+         <div class="panel panel-primary">
+            <div class="panel-heading">
+               <h2 class="panel-title">Password lengths</h2>
+            </div>
+            <div id="pass_len_graph" class="panel-body"></div>
+         </div>
+         <div class="panel panel-primary">
+            <div class="panel-heading">
+               <h2 class="panel-title">Password charsets</h2>
+            </div>
+            <div id="top_pass_charset_graph" class="panel-body"></div>
+         </div>
+
+   <script type="text/javascript">
+      var top_password_chart = new Highcharts.chart('top_password_graph', {
+          chart: {
+              type: 'bar',
+              marginLeft: 140
+          },
+          title: {
+              text: ''
+          },
+          xAxis: {
+              categories: [],
+              title: {
+                  text: null
+              }
+          },
+          yAxis: {
+              min: 0,
+              title: {
+                  text: null,
+                  align: 'high'
+              },
+              labels: {
+                  overflow: 'justify'
+              }
+          },
+          tooltip: {
+              valueSuffix: ' hit'
+          },
+          plotOptions: {
+              bar: {
+                  dataLabels: {
+                      enabled: false
+                  }
+              }
+          },
+          credits: {
+              enabled: false
+          },
+          series: [{
+              showInLegend: false,
+              name: 'top passwords',
+              data: [], //json_data['count_list'],
+          }]
+      });
+      top_password_chart.showLoading();
+
+      function update_top_password_chart() {
+         top_password_chart.xAxis[0].setCategories(json_data['top_password_list']);
+         top_password_chart.series[0].setData(json_data['count_list']);
+         top_password_chart.hideLoading();
+      }
+
+      var json_data = [];
+      $.getJSON('{% url "API:api_hashfile_top_password" hashfile.id 10 %}', function (data) {
+         json_data = data; 
+
+         update_top_password_chart();
+      });
+
+      var pass_len_chart = new Highcharts.chart('pass_len_graph', {
+          chart: {
+              type: 'column',
+              marginLeft: 140
+          },
+          title: {
+              text: ''
+          },
+          xAxis: {
+              categories: [],
+              title: {
+                  text: null
+              }
+          },
+          yAxis: {
+              min: 0,
+              title: {
+                  text: null,
+                  align: 'high'
+              },
+              labels: {
+                  overflow: 'justify'
+              }
+          },
+          tooltip: {
+              valueSuffix: ' hit'
+          },
+          plotOptions: {
+              bar: {
+                  dataLabels: {
+                      enabled: false
+                  }
+              }
+          },
+          credits: {
+              enabled: false
+          },
+          series: [{
+              showInLegend: false,
+              name: 'password lengths',
+              data: [],
+          }]
+      });
+      pass_len_chart.showLoading();
+
+      function update_pass_len_chart() {
+         pass_len_chart.xAxis[0].setCategories(json_data['password_length_list']);
+         pass_len_chart.series[0].setData(json_data['count_list']);
+         pass_len_chart.hideLoading();
+      }
+
+      var json_data = [];
+      $.getJSON('{% url "API:api_hashfile_top_password_len" hashfile.id 10 %}', function (data) {
+         json_data = data; 
+
+         update_pass_len_chart();
+      });
+
+      var top_pass_charset_chart = new Highcharts.chart('top_pass_charset_graph', {
+          chart: {
+              type: 'bar',
+              marginLeft: 140
+          },
+          title: {
+              text: ''
+          },
+          xAxis: {
+              categories: [],
+              title: {
+                  text: null
+              }
+          },
+          yAxis: {
+              min: 0,
+              title: {
+                  text: null,
+                  align: 'high'
+              },
+              labels: {
+                  overflow: 'justify'
+              }
+          },
+          tooltip: {
+              valueSuffix: ' hit'
+          },
+          plotOptions: {
+              bar: {
+                  dataLabels: {
+                      enabled: false
+                  }
+              }
+          },
+          credits: {
+              enabled: false
+          },
+          series: [{
+              showInLegend: false,
+              name: 'password charsets',
+              data: [],
+          }]
+      });
+      top_pass_charset_chart.showLoading();
+
+      function update_top_pass_charset_chart() {
+         top_pass_charset_chart.xAxis[0].setCategories(json_data['password_charset_list']);
+         top_pass_charset_chart.series[0].setData(json_data['count_list']);
+         top_pass_charset_chart.hideLoading();
+      }
+
+      var json_data = [];
+      $.getJSON('{% url "API:api_hashfile_top_password_charset" hashfile.id 10 %}', function (data) {
+         json_data = data; 
+
+         update_top_pass_charset_chart();
+      });
+
+   </script>
+
+      </div>
+   </div>
+{% endblock %}

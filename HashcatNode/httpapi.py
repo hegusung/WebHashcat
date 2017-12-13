@@ -37,6 +37,7 @@ class Server:
         self._app.add_url_rule("/sessionInfo/<session_name>", "sessionInfo", self._sessionInfo, methods=["GET"])
         self._app.add_url_rule("/hashcatOutput/<session_name>", "hashcatOutput", self._hashcatOutput, methods=["GET"])
         self._app.add_url_rule("/hashes/<session_name>", "hashes", self._hashes, methods=["GET"])
+        self._app.add_url_rule("/getPotfile/<session_name>/<from_line>", "getPotfile", self._get_potfile, methods=["GET"])
         self._app.add_url_rule("/cracked/<session_name>", "cracked", self._cracked, methods=["GET"])
         self._app.add_url_rule("/createSession", "createSession", self._createSession, methods=["POST"])
         self._app.add_url_rule("/removeSession/<session_name>", "removeSession", self._removeSession, methods=["GET"])
@@ -67,16 +68,15 @@ class Server:
     def _hashcatInfo(self):
         try:
             hash_types = list(Hashcat.hash_modes.values())
-            rules = list(Hashcat.rules.keys())
-            masks = list(Hashcat.masks.keys())
-            wordlists = list(Hashcat.wordlists.keys())
+            rules = Hashcat.rules
+            masks = Hashcat.masks
+            wordlists = Hashcat.wordlists
             sessions = []
             for session in Hashcat.sessions.values():
                 sessions.append({
                     "name": session.name,
                     "status": session.session_status,
                     "crack_type": session.crack_type,
-                    "cracked": (int(session.current_cracked)*100)/int(session.total_hashes),
                     "progress": session.progress,
                 })
 
@@ -167,6 +167,23 @@ class Server:
                 "message": str(e),
             })
 
+    """
+        Returns the potfile starting from a specific line
+    """
+    def _get_potfile(self, session_name, from_line):
+        from_line = int(from_line)
+        try:
+            result = Hashcat.sessions[session_name].get_potfile(from_line)
+            result["response"] = "ok"
+
+            return json.dumps(result)
+        except Exception as e:
+            traceback.print_exc()
+
+            return json.dumps({
+                "response": "error",
+                "message": str(e),
+            })
 
     """
         Returns the cracked passwords
@@ -206,6 +223,7 @@ class Server:
             random_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
             hash_file = os.path.join(self.hash_directory, data["name"]+"_"+random_name+".list")
 
+            print(hash_file)
             f = open(hash_file, "w")
             f.write(data["hashes"])
             f.close()
@@ -254,7 +272,7 @@ class Server:
         Send an action to a session:
         Parameters are :
             - session: session name
-            - action: start, update, pause, resume or quit
+            - action: start, update, pause, resume, quit or remove
     """
     def _action(self):
         try:
@@ -270,6 +288,8 @@ class Server:
                 Hashcat.sessions[data["session"]].resume()
             if data["action"] == "quit":
                 Hashcat.sessions[data["session"]].quit()
+            if data["action"] == "remove":
+                Hashcat.remove_session(data["session"])
 
             res = {"response": "ok"}
 
@@ -292,7 +312,7 @@ class Server:
         try:
             data = json.loads(request.data.decode())
 
-            Hashcat.upload_rule(data["name"], data["rules"])
+            Hashcat.upload_rule(data["name"], base64.b64decode(data["rules"]))
 
             res = {"response": "ok"}
 
@@ -315,7 +335,7 @@ class Server:
         try:
             data = json.loads(request.data.decode())
 
-            Hashcat.upload_mask(data["name"], data["masks"])
+            Hashcat.upload_mask(data["name"], base64.b64decode(data["masks"]))
 
             res = {"response": "ok"}
 
@@ -338,7 +358,7 @@ class Server:
         try:
             data = json.loads(request.data.decode())
 
-            Hashcat.upload_wordlist(data["name"], data["wordlists"])
+            Hashcat.upload_wordlist(data["name"], base64.b64decode(data["wordlists"]))
 
             res = {"response": "ok"}
 

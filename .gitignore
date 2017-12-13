@@ -1,12 +1,16 @@
 WebHashcat/WebHashcat/settings.py
 WebHashcat/db.sqlite3
+WebHashcat/Files/**
 HashcatNode/*.crt
 HashcatNode/*.key
 HashcatNode/settings.ini
 HashcatNode/hashes/*
+HashcatNode/rules/*
+HashcatNode/masks/*
+HashcatNode/potfiles/*
+HashcatNode/wordlists/*
 HashcatNode/hashcatnode.db
 HashcatNode/hashcatnode.log
-Wordlist/
 TODO
 
 # Byte-compiled / optimized / DLL files

@@ -1,10 +1,12 @@
 import socket
 import http.client
 import ssl
+import threading
 #from urllib.request import Request, urlopen
 import struct
 import json
 import base64
+import os
 
 class HashcatAPI(object):
 
@@ -16,27 +18,47 @@ class HashcatAPI(object):
     def get_hashcat_info(self):
         return self.send("/hashcatInfo")
 
-    def create_rule_session(self, session_name, hash_type_id, rule, wordlist, hashes, username_included):
+    def create_dictionary_session(self, session_name, hashfile, rule, wordlist):
+        hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
+
+        from Utils.hashcat import Hashcat
+        if not hashfile.id in Hashcat.hashfile_locks:
+            Hashcat.hashfile_locks[hashfile.id] = threading.Lock()
+
+        Hashcat.hashfile_locks[hashfile.id].acquire()
+        hashes = open(hashfile_path).read()
+        Hashcat.hashfile_locks[hashfile.id].release()
+
         payload = {
             "name": session_name,
-            "crack_type": "rule",
-            "hash_mode_id": hash_type_id,
+            "crack_type": "dictionary",
+            "hash_mode_id": hashfile.hash_type,
             "rule": rule,
             "wordlist": wordlist,
             "hashes": hashes,
-            "username_included": username_included,
+            "username_included": hashfile.username_included,
         }
 
         return self.send("/createSession", data=payload)
 
-    def create_mask_session(self, session_name, hash_type_id, mask, hashes, username_included):
+    def create_mask_session(self, session_name, hashfile, mask):
+        hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
+
+        from Utils.hashcat import Hashcat
+        if not hashfile.id in Hashcat.hashfile_locks:
+            Hashcat.hashfile_locks[hashfile.id] = threading.Lock()
+
+        Hashcat.hashfile_locks[hashfile.id].acquire()
+        hashes = open(hashfile_path).read()
+        Hashcat.hashfile_locks[hashfile.id].release()
+
         payload = {
             "name": session_name,
             "crack_type": "mask",
-            "hash_mode_id": hash_type_id,
+            "hash_mode_id": hashfile.hash_type,
             "mask": mask,
             "hashes": hashes,
-            "username_included": username_included,
+            "username_included": hashfile.username_included,
         }
 
         return self.send("/createSession", data=payload)
@@ -65,11 +87,13 @@ class HashcatAPI(object):
     def get_hashes(self, session_name):
         return self.send("/hashes/%s" % session_name)
 
+    def get_potfile(self, session_name, from_line):
+        return self.send("/getPotfile/%s/%d" % (session_name, from_line))
 
     def upload_rule(self, name, rule_file):
         payload = {
             "name": name,
-            "rules": rule_file,
+            "rules": base64.b64encode(rule_file).decode(),
         }
 
         return self.send("/uploadRule", data=payload)
@@ -77,7 +101,7 @@ class HashcatAPI(object):
     def upload_mask(self, name, mask_file):
         payload = {
             "name": name,
-            "masks": mask_file,
+            "masks": base64.b64encode(mask_file).decode(),
         }
 
         return self.send("/uploadMask", data=payload)
@@ -85,7 +109,7 @@ class HashcatAPI(object):
     def upload_wordlist(self, name, wordlist_file):
         payload = {
             "name": name,
-            "wordlists": wordlist_file,
+            "wordlists": base64.b64encode(wordlist_file).decode(),
         }
 
         return self.send("/uploadWordlist", data=payload)
