@@ -23,14 +23,47 @@ The rules, mask and wordlist directory must be writable by the user running hash
 
 the hashcatnode can be run simply by running `./hashcatnode.py`
 
-### WebHashcat
-
-To be done
-
-## Dependencies
+#### Dependencies
 
 - python3
-- django
 - flask
 - flask-basicauth
+- hashcat >= 3
+
+### WebHashcat
+
+WebHashcat is a django application using mysql database, its installation is done this way:
+* Edit `WebHashcat/settings.py` file:
+- Change the SECRET_KEY parameter
+- Add your webhashcat fqdn to ALLOWED_HOSTS
+- Set your mysql username and password in the DATABASES section
+- Set DEBUG = False if you are using it in production !
+you can refer to the following django documentation for further info: https://docs.djangoproject.com/en/2.0/howto/deployment/checklist/
+
+* Edit `settings.ini` file
+- the potfile parameter doesn't need to be changed
+
+* Create the database with django
+```
+./manage.py makemigrations
+./manage.py migrate
+```
+
+* Create the user to access the interface
+```
+./manage.py createsuperuser
+```
+
+* If you want to test the interface without setting up a web server use this command:
+```
+./manage.py runserver
+```
+
+* If you want to set up the interface with a proper webserver like apache or nginx please refer to the following documentation:
+https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/modwsgi/
+
+#### Dependencies
+
+- python3
+- django >= 2
 - hashcat >= 3

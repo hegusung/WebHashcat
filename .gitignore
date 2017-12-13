@@ -1,4 +1,5 @@
 WebHashcat/WebHashcat/settings.py
+WebHashcat/settings.ini
 WebHashcat/db.sqlite3
 WebHashcat/Files/**
 HashcatNode/*.crt

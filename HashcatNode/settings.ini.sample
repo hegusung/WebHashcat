@@ -9,8 +9,8 @@ password = hashcatnodepassword
 
 [Hashcat]
 binary = /usr/bin/hashcat
-hashes_dir = /path/to/hashes/dir
-rule_dir = /path/to/hahscat/rule/dir
-wordlist_dir = /path/to/hashcat/wordlist/dir
-mask_dir = /path/to/hashcat/mask/dir
+hashes_dir = /path/to/hashcatnode/hashes/dir
+rule_dir = /path/to/hashcatnode/rule/dir
+wordlist_dir = /path/to/hashcatnode/wordlist/dir
+mask_dir = /path/to/hashcatnode/mask/dir
 workload_profile = 3
