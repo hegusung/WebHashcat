@@ -36,6 +36,8 @@ the hashcatnode can be run simply by running `./hashcatnode.py`
 
 ### WebHashcat
 
+#### Configuration
+
 WebHashcat is a django application using mysql database, its installation is done this way:
 * Edit `WebHashcat/settings.py` file:
 - Change the SECRET_KEY parameter
@@ -58,6 +60,8 @@ you can refer to the following django documentation for further info: https://do
 ./manage.py createsuperuser
 ```
 
+#### Setting up the web server
+
 * If you want to test the interface without setting up a web server use this command:
 ```
 ./manage.py runserver
@@ -65,6 +69,13 @@ you can refer to the following django documentation for further info: https://do
 
 * If you want to set up the interface with a proper webserver like apache or nginx please refer to the following documentation:
 https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/modwsgi/
+
+#### Setting up the automatic updates
+
+* Set it up in a crontab:
+```
+/path/to/WebHashcat/cron.py <webhashcat_ip/host> <webhashcat_port> [--ssl]
+```
 
 #### Dependencies
 
