@@ -342,9 +342,6 @@ class Hashcat(object):
 
         updated_hash_type = self.update_potfile()
 
-        print("sleep 10sec")
-        time.sleep(10)
-
         # now the potfile has been updated, update the cracked files
         for hashfile in Hashfile.objects.all():
             if hashfile.hash_type in updated_hash_type:
