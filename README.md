@@ -74,7 +74,7 @@ https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/modwsgi/
 
 * Set it up in a crontab:
 ```
-/path/to/WebHashcat/cron.py <webhashcat_ip/host> <webhashcat_port> [--ssl]
+* * * * *    /path/to/WebHashcat/cron.py <webhashcat_ip/host> <webhashcat_port> [--ssl]
 ```
 
 #### Dependencies
