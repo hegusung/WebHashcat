@@ -32,6 +32,7 @@ from Nodes.models import Node
 
 from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
+from Utils.utils import del_hashfile_locks
 # Create your views here.
 
 @login_required
@@ -104,7 +105,6 @@ def api_hashfiles(request):
 
     sort_index = ["name", "name", "hash_type", "line_count", "cracked_count", "name", "name", "name"][int(params["order[0][column]"])]
     sort_index = "-" + sort_index if params["order[0][dir]"] == "desc" else sort_index
-    print("SORT INDEX: %s" % sort_index)
     hashfile_list = Hashfile.objects.filter(name__contains=params["search[value]"]).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
 
     data = []
@@ -403,6 +403,8 @@ def api_hashfile_action(request):
 
     hashfile = get_object_or_404(Hashfile, id=params["hashfile_id"])
 
+    print("Hashfile %s action %s" % (hashfile.name, params["action"])) 
+
     if params["action"] == "remove":
         # Check if there is a running session
         for session in Session.objects.filter(hashfile_id=hashfile.id):
@@ -427,6 +429,17 @@ def api_hashfile_action(request):
         except Exception as e:
             messages.error(request, "Error when deleting %s: %s" % (crackedfile_path, str(e)))
 
+        del_hashfile_locks(hashfile)
         hashfile.delete()
+
+    return HttpResponse(json.dumps({"result": "success"}), content_type="application/json")
+
+def api_update_hashfiles(request):
+    if request.method == "POST":
+        params = request.POST
+    else:
+        params = request.GET
+
+    Hashcat.update_hashfiles()
 
     return HttpResponse(json.dumps({"result": "success"}), content_type="application/json")

@@ -17,14 +17,18 @@ from os import listdir
 from os.path import isfile, join
 from operator import itemgetter
 from django.db.utils import ProgrammingError
+from django.contrib import messages
+from django.db import transaction
+from django.db.utils import OperationalError
 
+from Utils.models import Lock
 from Hashcat.models import Session, Hashfile, Cracked
 from Utils.hashcatAPI import HashcatAPI
 
 class Hashcat(object):
     _hash_types = {}
-    hashfile_locks = {}
 
+    """
     @classmethod
     def init_locks(self):
         # Create a lock for each hashfile
@@ -33,6 +37,7 @@ class Hashcat(object):
                 self.hashfile_locks[hashfile.id] = threading.Lock()
         except ProgrammingError:
             pass
+    """
 
     @classmethod
     def get_binary(self):
@@ -103,162 +108,168 @@ class Hashcat(object):
         if not potfile:
             potfile = self.get_potfile()
 
-        if not hashfile.id in self.hashfile_locks:
-            self.hashfile_locks[hashfile.id] = threading.Lock()
+        with transaction.atomic():
+            # Lock: prevent the potfile and hashfile from being modified while hashcat is running
+            potfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="potfile")[0]
+            hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
+            # Lock: prevent cracked file from being processed
+            crackedfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="crackedfile")[0]
 
-        self.hashfile_locks[hashfile.id].acquire()
+            hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
+            crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", hashfile.crackedfile)
 
-        hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
-        crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", hashfile.crackedfile)
+            # trick to allow multiple instances of hashcat
+            session_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
 
-        print("updating %s" % hashfile.name)
+            # Get cracked hashes 
+            cmd_line = [self.get_binary(), '--show', '-m', str(hashfile.hash_type), hashfile_path, '-o', crackedfile_path, '--session', session_name]
+            cmd_line += ['--outfile-format', '3']
+            if hashfile.username_included:
+                cmd_line += ['--username']
+            if potfile:
+                cmd_line += ['--potfile-path', potfile]
+            print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
+            p = subprocess.Popen(cmd_line)
+            p.wait()
 
-        """
-        # remove the previous result file
-        try:
-            os.remove(crackedfile_path)
-        except:
-            pass
-        # remove from database
-        Cracked.objects.filter(hashfile_id=hashfile.id).delete()
-        """
+            # Remove cracked hashes from list
+            f = tempfile.NamedTemporaryFile(delete=False)
+            f.close()
+            cmd_line = [self.get_binary(), '--left', '-m', str(hashfile.hash_type), hashfile_path, '-o', f.name, '--session', session_name]
+            cmd_line += ['--outfile-format', '1']
+            if hashfile.username_included:
+                cmd_line += ['--username']
+            if potfile:
+                cmd_line += ['--potfile-path', potfile]
+            print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
+            p = subprocess.Popen(cmd_line)
+            p.wait()
 
-        # trick to allow multiple instances of hashcat
-        session_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
+            # hashcat over, remove lock on potfile and hashfile
+            del hashfile_lock
+            del potfile_lock
 
-        # Get cracked hashes 
-        cmd_line = [self.get_binary(), '--show', '-m', str(hashfile.hash_type), hashfile_path, '-o', crackedfile_path, '--session', session_name]
-        cmd_line += ['--outfile-format', '3']
-        if hashfile.username_included:
-            cmd_line += ['--username']
-        if potfile:
-            cmd_line += ['--potfile-path', potfile]
-        print("Command: %s" % " ".join(cmd_line))
-        p = subprocess.Popen(cmd_line)
-        p.wait()
+            copyfile(f.name, hashfile_path)
 
-        # Remove cracked hashes from list
-        f = tempfile.NamedTemporaryFile(delete=False)
-        f.close()
-        cmd_line = [self.get_binary(), '--left', '-m', str(hashfile.hash_type), hashfile_path, '-o', f.name, '--session', session_name]
-        cmd_line += ['--outfile-format', '1']
-        if hashfile.username_included:
-            cmd_line += ['--username']
-        if potfile:
-            cmd_line += ['--potfile-path', potfile]
-        print("Command: %s" % " ".join(cmd_line))
-        p = subprocess.Popen(cmd_line)
-        p.wait()
-        copyfile(f.name, hashfile_path)
-
-        if os.path.exists(crackedfile_path):
-            try:
-                batch_create_list = []
-                for index, line in enumerate(open(crackedfile_path)):
-                    if index < hashfile.cracked_count:
-                        continue
-
-                    line = line.strip()
-                    password = line.split(":")[-1]
-                    if hashfile.username_included:
-                        username = line.split(":")[0]
-                        password_hash = ":".join(line.split(":")[1:-1])
-                    else:
-                        username = None
-                        password_hash = ":".join(line.split(":")[0:-1])
-
-                    pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
-
-                    cracked = Cracked(
-                            hashfile=hashfile,
-                            username=username,
-                            password=password,
-                            hash=password_hash,
-                            password_len=pass_len,
-                            password_charset=pass_charset,
-                            password_mask=pass_mask,
-                    )
-                    batch_create_list.append(cracked)
-
-
-                    if len(batch_create_list) >= 1000:
-                        Cracked.objects.bulk_create(batch_create_list)
-                        hashfile.cracked_count += len(batch_create_list)
-                        hashfile.save()
-                        batch_create_list = []
-                Cracked.objects.bulk_create(batch_create_list)
-                hashfile.cracked_count += len(batch_create_list)
-                hashfile.save()
-
-                print("done %s" % hashfile.name)
-            except Exception as e:
-                traceback.print_exc()
-
-            self.hashfile_locks[hashfile.id].release()
-        else:
-            self.hashfile_locks[hashfile.id].release()
-
-    @classmethod
-    def get_rules(self):
-        path = os.path.join(os.path.dirname(__file__), "..", "Files", "Rulefiles", "*")
-
-        # use md5sum instead of python code for performance issues on a big file
-        result = subprocess.run('md5sum %s' % path, shell=True, stdout=subprocess.PIPE).stdout.decode()
-
-        res = []
-        for line in result.split("\n"):
-            items = line.split()
-            if len(items) == 2:
-                res.append({
-                    "name": items[1].split("/")[-1],
-                    "md5": items[0],
-                    "path": items[1],
-                    })
-
-        return sorted(res, key=itemgetter('name'))
-
-    @classmethod
-    def get_masks(self):
-        path = os.path.join(os.path.dirname(__file__), "..", "Files", "Maskfiles", "*")
-
-        # use md5sum instead of python code for performance issues on a big file
-        result = subprocess.run('md5sum %s' % path, shell=True, stdout=subprocess.PIPE).stdout.decode()
-
-        res = []
-        for line in result.split("\n"):
-            items = line.split()
-            if len(items) == 2:
-                res.append({
-                    "name": items[1].split("/")[-1],
-                    "md5": items[0],
-                    "path": items[1],
-                    })
-
-        return sorted(res, key=itemgetter('name'))
-
-    @classmethod
-    def get_wordlists(self):
-        path = os.path.join(os.path.dirname(__file__), "..", "Files", "Wordlistfiles", "*")
-
-        # use md5sum instead of python code for performance issues on a big file
-        result = subprocess.run('md5sum %s' % path, shell=True, stdout=subprocess.PIPE).stdout.decode()
-
-        res = []
-        for line in result.split("\n"):
-            items = line.split()
-            if len(items) == 2:
-                info = {
-                    "name": items[1].split("/")[-1],
-                    "md5": items[0],
-                    "path": items[1],
-                }
-
+            if os.path.exists(crackedfile_path):
                 try:
-                    info["lines"] = humanize.intcomma(sum(1 for _ in open(items[1], errors="backslashreplace")))
-                except UnicodeDecodeError:
-                    print("Unicode decode error in file %s" % items[1])
-                    info["lines"] = "error"
-                res.append(info)
+                    batch_create_list = []
+                    for index, line in enumerate(open(crackedfile_path)):
+                        if index < hashfile.cracked_count:
+                            continue
+
+                        line = line.strip()
+                        password = line.split(":")[-1]
+                        if hashfile.username_included:
+                            username = line.split(":")[0]
+                            password_hash = ":".join(line.split(":")[1:-1])
+                        else:
+                            username = None
+                            password_hash = ":".join(line.split(":")[0:-1])
+
+                        pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
+
+                        cracked = Cracked(
+                                hashfile=hashfile,
+                                username=username,
+                                password=password,
+                                hash=password_hash,
+                                password_len=pass_len,
+                                password_charset=pass_charset,
+                                password_mask=pass_mask,
+                        )
+                        batch_create_list.append(cracked)
+
+
+                        if len(batch_create_list) >= 1000:
+                            Cracked.objects.bulk_create(batch_create_list)
+                            hashfile.cracked_count += len(batch_create_list)
+                            hashfile.save()
+                            batch_create_list = []
+                    Cracked.objects.bulk_create(batch_create_list)
+                    hashfile.cracked_count += len(batch_create_list)
+                    hashfile.save()
+
+                except Exception as e:
+                    traceback.print_exc()
+
+            # Crackedfile processing if over, remove lock
+            del crackedfile_lock
+
+    @classmethod
+    def get_rules(self, detailed=True):
+
+        res = []
+        if not detailed:
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Rulefiles")
+            res = [{"name": f} for f in listdir(path) if isfile(join(path, f)) and f.endswith(".rule")]
+        else:
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Rulefiles", "*")
+            # use md5sum instead of python code for performance issues on a big file
+            result = subprocess.run('md5sum %s' % path, shell=True, stdout=subprocess.PIPE).stdout.decode()
+
+            for line in result.split("\n"):
+                items = line.split()
+                if len(items) == 2:
+                    res.append({
+                        "name": items[1].split("/")[-1],
+                        "md5": items[0],
+                        "path": items[1],
+                        })
+
+        return sorted(res, key=itemgetter('name'))
+
+    @classmethod
+    def get_masks(self, detailed=True):
+
+        res = []
+        if not detailed:
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Maskfiles")
+            res = [{"name": f} for f in listdir(path) if isfile(join(path, f)) and f.endswith(".hcmask")]
+        else:
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Maskfiles", "*")
+            # use md5sum instead of python code for performance issues on a big file
+            result = subprocess.run('md5sum %s' % path, shell=True, stdout=subprocess.PIPE).stdout.decode()
+
+            for line in result.split("\n"):
+                items = line.split()
+                if len(items) == 2:
+                    res.append({
+                        "name": items[1].split("/")[-1],
+                        "md5": items[0],
+                        "path": items[1],
+                        })
+
+        return sorted(res, key=itemgetter('name'))
+
+    @classmethod
+    def get_wordlists(self, detailed=True):
+
+        res = []
+        if not detailed:
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Wordlistfiles")
+
+            res = [{"name": f} for f in listdir(path) if isfile(join(path, f)) and f.endswith(".wordlist")]
+        else:
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Wordlistfiles", "*")
+            # use md5sum instead of python code for performance issues on a big file
+            result = subprocess.run('md5sum %s' % path, shell=True, stdout=subprocess.PIPE).stdout.decode()
+
+            for line in result.split("\n"):
+                items = line.split()
+                if len(items) == 2:
+                    info = {
+                        "name": items[1].split("/")[-1],
+                        "md5": items[0],
+                        "path": items[1],
+                    }
+
+                    try:
+                        info["lines"] = humanize.intcomma(sum(1 for _ in open(items[1], errors="backslashreplace")))
+                    except UnicodeDecodeError:
+                        print("Unicode decode error in file %s" % items[1])
+                        info["lines"] = "error"
+                    res.append(info)
 
 
         return sorted(res, key=itemgetter('name'))
@@ -327,52 +338,72 @@ class Hashcat(object):
             pass
 
     @classmethod
+    def update_hashfiles(self):
+
+        updated_hash_type = self.update_potfile()
+
+        print("sleep 10sec")
+        time.sleep(10)
+
+        # now the potfile has been updated, update the cracked files
+        for hashfile in Hashfile.objects.all():
+            if hashfile.hash_type in updated_hash_type:
+                try:
+                    self.compare_potfile(hashfile)
+                except OperationalError:
+                    # Probably already being updated, no need to process it again
+                    pass
+
+    @classmethod
     def update_potfile(self):
-        print("Updating potfile")
 
         updated_hash_type = []
 
-        # update the potfile
-        for session in Session.objects.all():
-            try:
-                node = session.node
+        with transaction.atomic():
+            potfile_locks = list(Lock.objects.select_for_update().filter(lock_ressource="potfile"))
 
-                hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
+            print("Updating potfile")
 
-                remaining = True
-                while(remaining):
-                    potfile_data = hashcat_api.get_potfile(session.name, session.potfile_line_retrieved)
+            # update the potfile
+            for session in Session.objects.all():
+                try:
+                    node = session.node
 
-                    if potfile_data["response"] == "ok" and potfile_data["line_count"] > 0:
-                        updated_hash_type.append(session.hashfile.hash_type)
+                    hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
 
-                        f = open(self.get_potfile(), "a")
-                        f.write(potfile_data["potfile_data"])
-                        f.close()
+                    # Lock: prevent the potfile from being modified
 
-                        session.potfile_line_retrieved += potfile_data["line_count"]
-                        session.save()
 
-                        remaining = potfile_data["remaining_data"]
+                    remaining = True
+                    while(remaining):
+                        potfile_data = hashcat_api.get_potfile(session.name, session.potfile_line_retrieved)
 
-                        # Propably quicker than a python equivalent code
-                        tmp_potfile = "/tmp/webhashcat_potfile"
-                        os.system("sort %s | uniq > %s; mv %s %s" % (Hashcat.get_potfile(), tmp_potfile, tmp_potfile, Hashcat.get_potfile()))
-                    else:
-                        remaining = False
-            except ConnectionRefusedError:
-                pass
+                        if potfile_data["response"] == "ok" and potfile_data["line_count"] > 0:
+                            updated_hash_type.append(session.hashfile.hash_type)
 
-        # now the potfile has been updated, update the cracked files
-        thread_list = []
-        for hashfile in Hashfile.objects.all():
-            if hashfile.hash_type in updated_hash_type:
-                t = threading.Thread(target=self.update_crackedfiles, args=(self,hashfile,))
-                thread_list.append(t)
-                t.start()
+                            f = open(self.get_potfile(), "a")
+                            f.write(potfile_data["potfile_data"])
+                            f.close()
 
-        for t in thread_list:
-            t.join()
+                            session.potfile_line_retrieved += potfile_data["line_count"]
+                            session.save()
+
+                            remaining = potfile_data["remaining_data"]
+
+                            # Probably quicker than a python equivalent code
+                            tmp_potfile = "/tmp/webhashcat_potfile"
+                            os.system("sort %s | uniq > %s; mv %s %s" % (Hashcat.get_potfile(), tmp_potfile, tmp_potfile, Hashcat.get_potfile()))
+                        else:
+                            remaining = False
+
+                except ConnectionRefusedError:
+                    pass
+
+            print("Done updating potfile")
+
+            del potfile_locks
+
+        return updated_hash_type
 
     @classmethod
     def backup_potfile(self):
@@ -392,10 +423,8 @@ class Hashcat(object):
         if potfile_line_count > potfile_backup_line_count:
             copyfile(potfile_path, potfile_backup_path)
         elif potfile_line_count < potfile_backup_line_count:
+            # It can happen when the RAW is full, hashcat fails and the potfile might get corrupted
             print("ERROR: potfile corrupted !!!!")
-
-    def update_crackedfiles(self, hashfile):
-        self.compare_potfile(hashfile)
 
 # This function is taken from https://github.com/iphelix/pack
 

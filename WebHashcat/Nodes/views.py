@@ -74,21 +74,21 @@ def node(request, node_name, error_msg=""):
 
             for rule in rule_list:
                 if not rule["name"] in node_data["rules"]:
-                    print(hashcat_api.upload_rule(rule["name"], open(rule["path"], 'rb').read()))
+                    hashcat_api.upload_rule(rule["name"], open(rule["path"], 'rb').read())
                 elif node_data["rules"][rule["name"]]["md5"] != rule["md5"]:
-                    print(hashcat_api.upload_rule(rule["name"], open(rule["path"], 'rb').read()))
+                    hashcat_api.upload_rule(rule["name"], open(rule["path"], 'rb').read())
 
             for mask in mask_list:
                 if not mask["name"] in node_data["masks"]:
-                    print(hashcat_api.upload_mask(mask["name"], open(mask["path"], 'rb').read()))
+                    hashcat_api.upload_mask(mask["name"], open(mask["path"], 'rb').read())
                 elif node_data["masks"][mask["name"]]["md5"] != mask["md5"]:
-                    print(hashcat_api.upload_mask(mask["name"], open(mask["path"], 'rb').read()))
+                    hashcat_api.upload_mask(mask["name"], open(mask["path"], 'rb').read())
 
             for wordlist in wordlist_list:
                 if not wordlist["name"] in node_data["wordlists"]:
-                    print(hashcat_api.upload_wordlist(wordlist["name"], open(wordlist["path"], 'rb').read()))
+                    hashcat_api.upload_wordlist(wordlist["name"], open(wordlist["path"], 'rb').read())
                 elif node_data["wordlists"][wordlist["name"]]["md5"] != wordlist["md5"]:
-                    print(hashcat_api.upload_wordlist(wordlist["name"], open(wordlist["path"], 'rb').read()))
+                    hashcat_api.upload_wordlist(wordlist["name"], open(wordlist["path"], 'rb').read())
 
     hashcat_api = HashcatAPI(node_item.hostname, node_item.port, node_item.username, node_item.password)
     node_data = hashcat_api.get_hashcat_info()

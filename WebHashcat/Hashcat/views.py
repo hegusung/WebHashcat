@@ -21,6 +21,7 @@ from django.db.models import Q, Count, BinaryField
 from django.db.models.functions import Cast
 from django.db import connection
 from django.contrib import messages
+from django.db.utils import OperationalError
 
 from django.shortcuts import get_object_or_404
 
@@ -31,6 +32,7 @@ from .models import Hashfile, Session, Cracked
 
 from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
+from Utils.utils import init_hashfile_locks
 # Create your views here.
 
 @login_required
@@ -69,15 +71,25 @@ def hashfiles(request):
                 username_included=username_included,
             )
             hashfile.save()
-            Hashcat.compare_potfile(hashfile)
+            init_hashfile_locks(hashfile)
+
+            # Update the new file with the potfile, this may take a while
+            updated = False
+            while not updated:
+                try:
+                    Hashcat.compare_potfile(hashfile)
+                    updated = True
+                except OperationalError:
+                    # db locked, try again !!!
+                    pass
 
             messages.success(request, "Hashfile successfully added")
 
     context["node_list"] = Node.objects.all()
     context["hash_type_list"] = Hashcat.get_hash_types().values()
-    context["rule_list"] = [{'name': None}] + Hashcat.get_rules()
-    context["mask_list"] = Hashcat.get_masks()
-    context["wordlist_list"] = Hashcat.get_wordlists()
+    context["rule_list"] = [{'name': None}] + Hashcat.get_rules(detailed=False)
+    context["mask_list"] = Hashcat.get_masks(detailed=False)
+    context["wordlist_list"] = Hashcat.get_wordlists(detailed=False)
 
     template = loader.get_template('Hashcat/hashes.html')
     return HttpResponse(template.render(context, request))

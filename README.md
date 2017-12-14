@@ -13,6 +13,10 @@ This project is composed of 2 parts:
 - WebHashcat, the web interface made with the django framework 
 - HashcatNode, A hashcat wrapper with creates an API over hashcat
 
+## Usage
+
+To be done
+
 ## Install
 
 ### HashcatNode

@@ -7,6 +7,8 @@ import struct
 import json
 import base64
 import os
+from django.db import transaction
+from Utils.models import Lock
 
 class HashcatAPI(object):
 
@@ -22,12 +24,15 @@ class HashcatAPI(object):
         hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
 
         from Utils.hashcat import Hashcat
-        if not hashfile.id in Hashcat.hashfile_locks:
-            Hashcat.hashfile_locks[hashfile.id] = threading.Lock()
+        from Hashcat.models import Hashfile
 
-        Hashcat.hashfile_locks[hashfile.id].acquire()
-        hashes = open(hashfile_path).read()
-        Hashcat.hashfile_locks[hashfile.id].release()
+        with transaction.atomic():
+            # Prevent hashfile from being modified while read 
+            hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
+
+            hashes = open(hashfile_path).read()
+
+            del hashfile_lock
 
         payload = {
             "name": session_name,
@@ -45,12 +50,16 @@ class HashcatAPI(object):
         hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
 
         from Utils.hashcat import Hashcat
-        if not hashfile.id in Hashcat.hashfile_locks:
-            Hashcat.hashfile_locks[hashfile.id] = threading.Lock()
+        from Hashcat.models import Hashfile
 
-        Hashcat.hashfile_locks[hashfile.id].acquire()
-        hashes = open(hashfile_path).read()
-        Hashcat.hashfile_locks[hashfile.id].release()
+        # lock
+        with transaction.atomic():
+            # Prevent hashfile from being modified while read 
+            hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
+
+            hashes = open(hashfile_path).read()
+
+            del hashfile_lock
 
         payload = {
             "name": session_name,
