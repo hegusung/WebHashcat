@@ -109,8 +109,9 @@ class Hashcat(object):
             potfile = self.get_potfile()
 
         with transaction.atomic():
-            # Lock: prevent the potfile and hashfile from being modified while hashcat is running
-            potfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="potfile")[0]
+            # Lock: lock all the potfiles, this way only one instance of hashcat will be running at a time, the --left option eats a lot of RAM...
+            potfile_locks = list(Lock.objects.select_for_update().filter(lock_ressource="potfile"))
+            # Lock: prevent hashes file from being processed
             hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
             # Lock: prevent cracked file from being processed
             crackedfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="crackedfile")[0]
@@ -147,7 +148,7 @@ class Hashcat(object):
 
             # hashcat over, remove lock on potfile and hashfile
             del hashfile_lock
-            del potfile_lock
+            del potfile_locks
 
             copyfile(f.name, hashfile_path)
 
