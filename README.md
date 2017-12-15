@@ -4,7 +4,7 @@ Hashcat web interface
 WebHashcat is a very simple but efficient web interface for hashcat password cracking tool.
 It hash the following features:
 * Distributed cracking sessions between multiple server (you only need to install HashcatNode on the remote server)
-* Cracked hashes are displayed as soon as they are cracked
+* Cracked hashes are displayed almost as soon as they are cracked
 * Analytics
 
 Currently WebHashcat supports rule-based and mask-based attack mode
@@ -13,9 +13,39 @@ This project is composed of 2 parts:
 - WebHashcat, the web interface made with the django framework 
 - HashcatNode, A hashcat wrapper which creates an API over hashcat
 
-## Usage
+## WebHashcat Usage
 
-To be done
+### Adding rules, masks and wordlists to webhashcat
+
+Go to the Hashcat > Files page, than simply use the upload button to add new files. Note that uploaded files are added to webhashcat but not deployed to nodes yet.
+
+<p align="center"><img src="./screenshots/webhashcat_files.png" alt="Rules/Masks/Wordlists"></p>
+
+### Register a node
+
+The nodes can be simply added and removed on the Node page, you only need to define the ip, port, username and password (as defined in the hashcatnode configuration script).
+
+<p align="center"><img src="./screenshots/webhashcat_node_list.png" alt="Node list"></p>
+
+Once a node is registered, click on the node and hit the syncronise button on the top. Rules, Masks and Wordlists should now be uploaded to the node (all files should be green).
+
+<p align="center"><img src="./screenshots/webhashcat_node.png" alt="Node"></p>
+
+### Adding a hashfile
+
+In the hashcat page, simply hit the bottom "add" button to upload a new hashfile, after comparing the new hashfile to the centralised potfile (can take a few minutes with huge hashfiles), your hashfile should appear in the list.
+
+### Creating a cracking session
+
+Simply hit the "+" button on the left of the hashfile, then select the desired cracking method. Note that sessions aren't started automatically, you will need to use the "play" button to start them.
+
+<p align="center"><img src="./screenshots/webhashcat_hashfile_list.png" alt="Hashfile list"></p>
+
+If you set the cron to 5 minutes, the central potfile will be updated every 5 minutes with newly cracked hashes.
+
+Simply click on the hashfile to view the results, it can take few seconds on huge hashfiles. Note that you can also download the results on both the hashfile list and hashfile views.
+
+<p align="center"><img src="./screenshots/webhashcat_hashfile.png" alt="Hashfile details"></p>
 
 ## Install
 
@@ -70,11 +100,11 @@ you can refer to the following django documentation for further info: https://do
 * If you want to set up the interface with a proper webserver like apache or nginx please refer to the following documentation:
 https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/modwsgi/
 
-#### Setting up the automatic updates
+#### Setting up the automatic hashfile updates
 
-* Set it up in a crontab:
+* Register the following command in a crontab (in the following example the hashfiles will be updated every 5 minutes):
 ```
-* * * * *    /path/to/WebHashcat/cron.py <webhashcat_ip/host> <webhashcat_port> [--ssl]
+*/5 * * * *    /path/to/WebHashcat/cron.py <webhashcat_ip/host> <webhashcat_port> [--ssl]
 ```
 
 #### Dependencies
