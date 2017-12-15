@@ -341,6 +341,8 @@ class Hashcat(object):
     @classmethod
     def update_hashfiles(self):
 
+        self.backup_potfile()
+
         updated_hash_type = self.update_potfile()
 
         # now the potfile has been updated, update the cracked files
