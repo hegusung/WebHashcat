@@ -155,7 +155,7 @@ class Hashcat(object):
             if os.path.exists(crackedfile_path):
                 try:
                     batch_create_list = []
-                    for index, line in enumerate(open(crackedfile_path)):
+                    for index, line in enumerate(open(crackedfile_path, encoding='utf-8')):
                         if index < hashfile.cracked_count:
                             continue
 
@@ -381,7 +381,7 @@ class Hashcat(object):
                         if potfile_data["response"] == "ok" and potfile_data["line_count"] > 0:
                             updated_hash_type.append(session.hashfile.hash_type)
 
-                            f = open(self.get_potfile(), "a")
+                            f = open(self.get_potfile(), "a", encoding='utf-8')
                             f.write(potfile_data["potfile_data"])
                             f.close()
 

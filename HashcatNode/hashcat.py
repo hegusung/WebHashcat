@@ -435,7 +435,7 @@ class Session(Model):
         potfile_data = ""
         complete = True
         if os.path.exists(self.pot_file):
-            for line in open(self.pot_file):
+            for line in open(self.pot_file, encoding="utf-8"):
                 if not line.endswith("\n"):
                     complete = True
                     break
