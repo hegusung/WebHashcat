@@ -21,13 +21,13 @@ Go to the Hashcat > Files page, than simply use the upload button to add new fil
 
 <p align="center"><img src="./screenshots/webhashcat_files.png" alt="Rules/Masks/Wordlists"></p>
 
-### Register a node
+### Registering a node
 
 The nodes can be simply added and removed on the Node page, you only need to define the ip, port, username and password (as defined in the hashcatnode configuration script).
 
 <p align="center"><img src="./screenshots/webhashcat_node_list.png" alt="Node list"></p>
 
-Once a node is registered, click on the node and hit the syncronise button on the top. Rules, Masks and Wordlists should now be uploaded to the node (all files should be green).
+Once a node is registered, click on the node and hit the synchronise button on the top. Rules, Masks and Wordlists should now be uploaded to the node (all files should be green).
 
 <p align="center"><img src="./screenshots/webhashcat_node.png" alt="Node"></p>
 
@@ -57,11 +57,23 @@ The rules, mask and wordlist directory must be writable by the user running hash
 
 the hashcatnode can be run simply by running `./hashcatnode.py`
 
+* Create the database (sqlite)
+Run the script (HashcatNode folder)
+```
+./create_database.py
+```
+
+* Create the node certificates
+```
+openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -days 365 -nodes
+```
+
 #### Dependencies
 
 - python3
 - flask
 - flask-basicauth
+- peewee
 - hashcat >= 3
 
 ### WebHashcat
@@ -71,6 +83,13 @@ the hashcatnode can be run simply by running `./hashcatnode.py`
 WebHashcat is a django application using mysql database, its installation is done this way:
 * Edit `WebHashcat/settings.py` file:
 - Change the SECRET_KEY parameter
+You can generate a random secret key by running this in a python shell
+```
+from django.utils.crypto import get_random_string
+
+chars = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)'
+get_random_string(50, chars)
+```
 - Add your webhashcat fqdn to ALLOWED_HOSTS
 - Set your mysql username and password in the DATABASES section
 - Set DEBUG = False if you are using it in production !
@@ -112,3 +131,5 @@ https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/modwsgi/
 - python3
 - django >= 2
 - hashcat >= 3
+- mysqlclient
+- humanize
