@@ -19,7 +19,7 @@ from hashcat import Hashcat
 class Server:
     def __init__(self, host, port, user, password, hash_directory):
         self._host = host
-        self._port = port
+        self._port = int(port)
         self._app = Flask(__name__)
         self._route()
 

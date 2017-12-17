@@ -8,8 +8,6 @@ import humanize
 import time
 from collections import OrderedDict
 
-import plotly.offline as opy
-import plotly.graph_objs as go
 from django.shortcuts import render
 from django.shortcuts import redirect
 from django.template import loader
