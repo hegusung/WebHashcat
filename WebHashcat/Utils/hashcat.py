@@ -151,6 +151,7 @@ class Hashcat(object):
             del potfile_locks
 
             copyfile(f.name, hashfile_path)
+            os.remove(f.name)
 
             if os.path.exists(crackedfile_path):
                 try:

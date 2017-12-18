@@ -133,3 +133,5 @@ https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/modwsgi/
 - hashcat >= 3
 - mysqlclient
 - humanize
+- requests
+- schedule
