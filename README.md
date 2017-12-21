@@ -98,7 +98,13 @@ you can refer to the following django documentation for further info: https://do
 * Edit `settings.ini` file
 - the potfile parameter doesn't need to be changed
 
-* Create the database with django
+* Create the mysql database
+Create the database using the following command to ensure you can insert utf8 usernames/passwords
+```
+CREATE DATABASE webhashcat CHARACTER SET utf8;
+```
+
+* Create the tables with django
 ```
 ./manage.py makemigrations
 ./manage.py migrate
