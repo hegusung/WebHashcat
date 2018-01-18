@@ -68,6 +68,9 @@ Run the script (HashcatNode folder)
 openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -days 365 -nodes
 ```
 
+* Register as a service (systemd)
+Edit the systemd/hashcatnode.service file to match your setup, then copy it to /etc/systemd/system/ 
+
 #### Dependencies
 
 - python3
