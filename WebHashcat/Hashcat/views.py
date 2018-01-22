@@ -84,10 +84,10 @@ def hashfiles(request):
             messages.success(request, "Hashfile successfully added")
 
     context["node_list"] = Node.objects.all()
-    context["hash_type_list"] = Hashcat.get_hash_types().values()
-    context["rule_list"] = [{'name': None}] + Hashcat.get_rules(detailed=False)
-    context["mask_list"] = Hashcat.get_masks(detailed=False)
-    context["wordlist_list"] = Hashcat.get_wordlists(detailed=False)
+    context["hash_type_list"] = sorted(list(Hashcat.get_hash_types().values()), key=itemgetter('name'))
+    context["rule_list"] = [{'name': None}] + sorted(Hashcat.get_rules(detailed=False), key=itemgetter('name'))
+    context["mask_list"] = sorted(Hashcat.get_masks(detailed=False), key=itemgetter('name'))
+    context["wordlist_list"] = sorted(Hashcat.get_wordlists(detailed=False), key=itemgetter('name'))
 
     template = loader.get_template('Hashcat/hashes.html')
     return HttpResponse(template.render(context, request))
