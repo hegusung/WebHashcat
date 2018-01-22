@@ -1,5 +1,7 @@
 [Unit]
 Description=HashcatNode
+Wants=network-online.target
+After=network.target network-online.target
 
 [Service]
 ExecStart=/usr/bin/python3 /path/to/HashcatNode/hashcatnode.py
