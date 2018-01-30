@@ -165,6 +165,7 @@ def api_hashfile_sessions(request):
             hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
             session_info = hashcat_api.get_session_info(session.name)
 
+            print(session_info)
             if session_info["status"] == "Not started":
                 buttons =  "<button type='button' class='btn btn-success btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-play'></span></button>" % (session.name, "start")
                 buttons +=  "<button style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-remove'></span></button>" % (session.name, "remove")

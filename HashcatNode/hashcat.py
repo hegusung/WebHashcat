@@ -336,10 +336,6 @@ class Session(Model):
         self.thread = threading.Thread(target=self.session_thread)
         self.thread.start()
 
-        self.session_status = "Running"
-        self.time_started = datetime.utcnow()
-        self.save()
-
         # Little delay to ensure the process if properly launched
         time.sleep(1)
 
@@ -359,25 +355,33 @@ class Session(Model):
 
         self.time_started = str(datetime.now())
 
-        # Command lines used to crack the passwords
-        if self.crack_type == "dictionary":
-            if self.rule_file != None:
-                cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '0', '-m', str(self.hash_mode_id), self.hash_file, self.wordlist_file, '-r', self.rule_file]
-            else:
-                cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '0', '-m', str(self.hash_mode_id), self.hash_file, self.wordlist_file]
-        if self.crack_type == "mask":
-            cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '3', '-m', str(self.hash_mode_id), self.hash_file, self.mask_file]
-        if self.username_included:
-            cmd_line += ["--username"]
-        # workload profile
-        cmd_line += ["--workload-profile", Hashcat.workload_profile]
-        # set pot file
-        cmd_line += ["--potfile-path", self.pot_file]
+        if not self.session_status in ["Aborted"]:
+            # Command lines used to crack the passwords
+            if self.crack_type == "dictionary":
+                if self.rule_file != None:
+                    cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '0', '-m', str(self.hash_mode_id), self.hash_file, self.wordlist_file, '-r', self.rule_file]
+                else:
+                    cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '0', '-m', str(self.hash_mode_id), self.hash_file, self.wordlist_file]
+            if self.crack_type == "mask":
+                cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '3', '-m', str(self.hash_mode_id), self.hash_file, self.mask_file]
+            if self.username_included:
+                cmd_line += ["--username"]
+            # workload profile
+            cmd_line += ["--workload-profile", Hashcat.workload_profile]
+            # set pot file
+            cmd_line += ["--potfile-path", self.pot_file]
+        else:
+            # resume previous session
+            cmd_line = [Hashcat.binary, '--session', self.name, '--restore']
 
         print("Session:%s, startup command:%s" % (self.name, " ".join(cmd_line)))
         logging.debug("Session:%s, startup command:%s" % (self.name, " ".join(cmd_line)))
         with open(self.hashcat_output_file, "a") as f:
             f.write("Command: %s\n" % " ".join(cmd_line))
+
+        self.session_status = "Running"
+        self.time_started = datetime.utcnow()
+        self.save()
 
         self.session_process = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -406,8 +410,14 @@ class Session(Model):
                 if m:
                     setattr(self, var, m.group(1))
 
+        return_code = self.session_process.wait()
         # The cracking ended, set the parameters accordingly
-        self.session_status = "Done"
+        if return_code >= 0:
+            self.session_status = "Done"
+        elif return_code == -1:
+            self.session_status = "Error"
+        elif return_code == -2:
+            self.session_status = "Aborted"
         self.time_estimated = "N/A"
         self.speed = "N/A"
         self.save()

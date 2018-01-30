@@ -5,6 +5,7 @@ WebHashcat is a very simple but efficient web interface for hashcat password cra
 It hash the following features:
 * Distributed cracking sessions between multiple server (you only need to install HashcatNode on the remote server)
 * Cracked hashes are displayed almost as soon as they are cracked
+* Cracking session restore (for example after host reboot)
 * Analytics
 
 Currently WebHashcat supports rule-based and mask-based attack mode
