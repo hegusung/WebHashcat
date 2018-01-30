@@ -428,14 +428,19 @@
                      <input type="text" class="form-control" id="name" name="name">
                      </br>
 
-                     <label for="hash_type">Hash type</label>
-                     </br>
-                     <select name="hash_type" id="hash_type">
-                        {% for hash_type in hash_type_list %}
-                        <option value="{{ hash_type.id }}">{{ hash_type.name }}</option>
-                        {% endfor %}
-                     </select>
-                     </br>
+                     <div>
+
+                        <div style="float: right;">
+                           <p><small>Unsure about which hash type to choose ? <a href="https://hashcat.net/wiki/doku.php?id=example_hashes" >check this</a></small></p>
+                        </div>
+                        <label for="hash_type">Hash type</label>
+                        </br>
+                        <select name="hash_type" id="hash_type">
+                           {% for hash_type in hash_type_list %}
+                           <option value="{{ hash_type.id }}">{{ hash_type.name }}</option>
+                           {% endfor %}
+                        </select>
+                     </div>
                      </br>
 
                      <label for="hashes">Hashes</label>
