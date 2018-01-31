@@ -126,7 +126,7 @@ def api_hashfiles(request):
             data.append({
                 "DT_RowId": "row_%d" % hashfile.id,
                 "name": "<a href='%s'>%s<a/>" % (reverse('Hashcat:hashfile', args=(hashfile.id,)), hashfile.name),
-                "type": Hashcat.get_hash_types()[hashfile.hash_type]["name"],
+                "type": "Plaintext" if hashfile.hash_type == -1 else Hashcat.get_hash_types()[hashfile.hash_type]["name"],
                 "line_count": humanize.intcomma(hashfile.line_count),
                 "cracked": "%s (%.2f%%)" % (humanize.intcomma(hashfile.cracked_count), hashfile.cracked_count/hashfile.line_count*100),
                 "username_included": "yes" if hashfile.username_included else "no",

@@ -40,24 +40,31 @@ def hashfiles(request):
 
     if request.method == 'POST':
         if request.POST["action"] == "add":
-            hashfile_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".hashfile"
-            crackedfile_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".crackedfile"
+            hash_type=int(request.POST["hash_type"])
 
+            hashfile_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".hashfile"
             hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile_name)
+
+            crackedfile_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".crackedfile"
             crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", crackedfile_name)
 
             hashes = request.POST["hashes"]
-            f = open(hashfile_path, 'w')
+            if hash_type != -1: # if != plaintext
+                f = open(hashfile_path, 'w')
+            else:
+                f = open(crackedfile_path, 'w')
             if len(hashes) == 0 and "hashfile" in request.FILES:
                 f.write(request.FILES['hashfile'].read().decode())
             else:
                 f.write(hashes.strip())
             f.close()
 
-            hash_type=int(request.POST["hash_type"])
             username_included = "username_included" in request.POST
 
-            line_count = sum(1 for _ in open(hashfile_path, errors="backslashreplace"))
+            if hash_type != -1: # if != plaintext
+                line_count = sum(1 for _ in open(hashfile_path, errors="backslashreplace"))
+            else:
+                line_count = sum(1 for _ in open(crackedfile_path, errors="backslashreplace"))
 
             hashfile = Hashfile(
                 name=request.POST['name'],
@@ -75,16 +82,22 @@ def hashfiles(request):
             updated = False
             while not updated:
                 try:
-                    Hashcat.compare_potfile(hashfile)
+                    if hash_type != -1: # if != plaintext
+                        Hashcat.compare_potfile(hashfile)
+                    else:
+                        Hashcat.insert_plaintext(hashfile)
                     updated = True
                 except OperationalError:
                     # db locked, try again !!!
                     pass
 
-            messages.success(request, "Hashfile successfully added")
+            if hash_type != -1: # if != plaintext
+                messages.success(request, "Hashfile successfully added")
+            else:
+                messages.success(request, "Plaintext file successfully added")
 
     context["node_list"] = Node.objects.all()
-    context["hash_type_list"] = sorted(list(Hashcat.get_hash_types().values()), key=itemgetter('name'))
+    context["hash_type_list"] = [{'id': -1, 'name': 'Plaintext'}] + sorted(list(Hashcat.get_hash_types().values()), key=itemgetter('name'))
     context["rule_list"] = [{'name': None}] + sorted(Hashcat.get_rules(detailed=False), key=itemgetter('name'))
     context["mask_list"] = sorted(Hashcat.get_masks(detailed=False), key=itemgetter('name'))
     context["wordlist_list"] = sorted(Hashcat.get_wordlists(detailed=False), key=itemgetter('name'))
@@ -207,7 +220,7 @@ def hashfile(request, hashfile_id, error_msg=''):
     context['hashfile'] = hashfile
     context['lines'] = humanize.intcomma(hashfile.line_count)
     context['recovered'] = "%s (%.2f%%)" % (humanize.intcomma(hashfile.cracked_count), hashfile.cracked_count/hashfile.line_count*100)
-    context['hash_type'] = Hashcat.get_hash_types()[hashfile.hash_type]["name"]
+    context['hash_type'] = "Plaintext" if hashfile.hash_type == -1 else Hashcat.get_hash_types()[hashfile.hash_type]["name"]
 
     template = loader.get_template('Hashcat/hashfile.html')
     return HttpResponse(template.render(context, request))

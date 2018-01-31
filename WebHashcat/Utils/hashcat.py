@@ -199,6 +199,59 @@ class Hashcat(object):
             del crackedfile_lock
 
     @classmethod
+    def insert_plaintext(self, crackedfile):
+        with transaction.atomic():
+            # Lock: prevent cracked file from being processed
+            crackedfile_lock = Lock.objects.select_for_update().filter(hashfile_id=crackedfile.id, lock_ressource="crackedfile")[0]
+
+            crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", crackedfile.crackedfile)
+            if os.path.exists(crackedfile_path):
+                try:
+                    batch_create_list = []
+                    for index, line in enumerate(open(crackedfile_path, encoding='utf-8')):
+                        if index < crackedfile.cracked_count:
+                            continue
+
+                        line = line.strip()
+                        password = line.split(":")[-1]
+                        if crackedfile.username_included:
+                            username = line.split(":")[0]
+                            password_hash = ""
+                        else:
+                            username = None
+                            password_hash = ""
+
+                        pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
+
+                        cracked = Cracked(
+                                hashfile=crackedfile,
+                                username=username,
+                                password=password,
+                                hash=password_hash,
+                                password_len=pass_len,
+                                password_charset=pass_charset,
+                                password_mask=pass_mask,
+                        )
+                        batch_create_list.append(cracked)
+
+                        if len(batch_create_list) >= 1000:
+                            Cracked.objects.bulk_create(batch_create_list)
+                            crackedfile.cracked_count += len(batch_create_list)
+                            crackedfile.save()
+                            batch_create_list = []
+                    Cracked.objects.bulk_create(batch_create_list)
+                    crackedfile.cracked_count += len(batch_create_list)
+                    crackedfile.save()
+
+                except Exception as e:
+                    traceback.print_exc()
+
+
+
+            # Crackedfile processing if over, remove lock
+            del crackedfile_lock
+
+    @classmethod
     def get_rules(self, detailed=True):
 
         res = []
