@@ -283,7 +283,7 @@ def api_hashfile_top_password(request, hashfile_id, N):
 
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
-    pass_count_list = Cracked.objects.raw("SELECT 1 AS id, ANY_VALUE(password) AS password, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY BINARY password ORDER BY count DESC LIMIT 10", [hashfile.id])
+    pass_count_list = Cracked.objects.raw("SELECT 1 AS id, MAX(password) AS password, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY BINARY password ORDER BY count DESC LIMIT 10", [hashfile.id])
 
     top_password_list = []
     count_list = []
@@ -312,7 +312,7 @@ def api_hashfile_top_password_len(request, hashfile_id, N):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
     # didn't found the correct way in pure django...
-    pass_count_list = Cracked.objects.raw("SELECT 1 AS id, ANY_VALUE(password_len) AS password_len, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY password_len", [hashfile.id])
+    pass_count_list = Cracked.objects.raw("SELECT 1 AS id, MAX(password_len) AS password_len, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY password_len", [hashfile.id])
 
     min_len = None
     max_len = None
@@ -356,7 +356,7 @@ def api_hashfile_top_password_charset(request, hashfile_id, N):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
     # didn't found the correct way in pure django...
-    pass_count_list = Cracked.objects.raw("SELECT 1 AS id, ANY_VALUE(password_charset) AS password_charset, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY password_charset ORDER BY count DESC LIMIT 10", [hashfile.id])
+    pass_count_list = Cracked.objects.raw("SELECT 1 AS id, MAX(password_charset) AS password_charset, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY password_charset ORDER BY count DESC LIMIT 10", [hashfile.id])
 
     password_charset_list = []
     count_list = []

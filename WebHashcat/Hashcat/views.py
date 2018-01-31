@@ -252,7 +252,7 @@ def csv_masks(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
     # didn't found the correct way in pure django...
-    res = Cracked.objects.raw("SELECT id, password_mask, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY password_mask ORDER BY count DESC", [hashfile.id])
+    res = Cracked.objects.raw("SELECT 1 AS id, MAX(password_mask) AS password_mask, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY password_mask ORDER BY count DESC", [hashfile.id])
 
     fp = tempfile.SpooledTemporaryFile(mode='w')
     csvfile = csv.writer(fp, quotechar='"', quoting=csv.QUOTE_ALL)
