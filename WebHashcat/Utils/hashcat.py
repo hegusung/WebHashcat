@@ -130,7 +130,7 @@ class Hashcat(object):
             if potfile:
                 cmd_line += ['--potfile-path', potfile]
             print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
-            p = subprocess.Popen(cmd_line)
+            p = subprocess.Popen(cmd_line, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
             p.wait()
 
             # Remove cracked hashes from list
@@ -143,7 +143,7 @@ class Hashcat(object):
             if potfile:
                 cmd_line += ['--potfile-path', potfile]
             print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
-            p = subprocess.Popen(cmd_line)
+            p = subprocess.Popen(cmd_line, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
             p.wait()
 
             # hashcat over, remove lock on potfile and hashfile
@@ -181,7 +181,6 @@ class Hashcat(object):
                                 password_mask=pass_mask,
                         )
                         batch_create_list.append(cracked)
-
 
                         if len(batch_create_list) >= 1000:
                             Cracked.objects.bulk_create(batch_create_list)
