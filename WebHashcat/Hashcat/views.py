@@ -55,7 +55,7 @@ def hashfiles(request):
                 f = open(crackedfile_path, 'w')
             if len(hashes) == 0 and "hashfile" in request.FILES:
                 for chunk in request.FILES['hashfile'].chunks():
-                    f.write(chunk.decode())
+                    f.write(chunk.decode('UTF-8', 'backslashreplace'))
             else:
                 f.write(hashes.strip())
             f.close()
