@@ -25,7 +25,7 @@ from django.shortcuts import get_object_or_404
 
 from operator import itemgetter
 
-from Hashcat.models import Hashfile, Session, Cracked
+from Hashcat.models import Hashfile, Session, Hash
 from Nodes.models import Node
 
 from Utils.hashcatAPI import HashcatAPI
@@ -128,7 +128,7 @@ def api_hashfiles(request):
                 "name": "<a href='%s'>%s<a/>" % (reverse('Hashcat:hashfile', args=(hashfile.id,)), hashfile.name),
                 "type": "Plaintext" if hashfile.hash_type == -1 else Hashcat.get_hash_types()[hashfile.hash_type]["name"],
                 "line_count": humanize.intcomma(hashfile.line_count),
-                "cracked": "%s (%.2f%%)" % (humanize.intcomma(hashfile.cracked_count), hashfile.cracked_count/hashfile.line_count*100),
+                "cracked": "%s (%.2f%%)" % (humanize.intcomma(hashfile.cracked_count), hashfile.cracked_count/hashfile.line_count*100) if hashfile.line_count > 0 else "0",
                 "username_included": "yes" if hashfile.username_included else "no",
                 "sessions_count": "%d / %d" % (running_session_count, total_session_count),
                 "buttons": buttons,
@@ -165,7 +165,6 @@ def api_hashfile_sessions(request):
             hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
             session_info = hashcat_api.get_session_info(session.name)
 
-            print(session_info)
             if session_info["status"] == "Not started":
                 buttons =  "<button title='Start session' type='button' class='btn btn-success btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-play'></span></button>" % (session.name, "start")
                 buttons +=  "<button title='Remove session' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-remove'></span></button>" % (session.name, "remove")
@@ -240,22 +239,22 @@ def api_hashfile_cracked(request, hashfile_id):
         sort_index = ["hash", "password"][int(params["order[0][column]"])]
         sort_index = "-" + sort_index if params["order[0][dir]"] == "desc" else sort_index
 
-    total_count = Cracked.objects.filter(hashfile_id=hashfile.id).count()
+    total_count = Hash.objects.filter(password__isnull=False, hashfile_id=hashfile.id).count()
 
     if len(params["search[value]"]) == 0:
         if hashfile.username_included:
-            cracked_list = Cracked.objects.filter(hashfile_id=hashfile.id).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
+            cracked_list = Hash.objects.filter(password__isnull=False, hashfile_id=hashfile.id).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
             filtered_count = total_count
         else:
-            cracked_list = Cracked.objects.filter(hashfile_id=hashfile.id).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
+            cracked_list = Hash.objects.filter(password__isnull=False, hashfile_id=hashfile.id).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
             filtered_count = total_count
     else:
         if hashfile.username_included:
-            cracked_list = Cracked.objects.filter(Q(username__contains=params["search[value]"]) | Q(password__contains=params["search[value]"]), hashfile_id=hashfile.id).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
-            filtered_count = Cracked.objects.filter(Q(username__contains=params["search[value]"]) | Q(password__contains=params["search[value]"]), hashfile_id=hashfile.id).count()
+            cracked_list = Hash.objects.filter(Q(username__contains=params["search[value]"]) | Q(password__contains=params["search[value]"]), password__isnull=False, hashfile_id=hashfile.id).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
+            filtered_count = Hash.objects.filter(Q(username__contains=params["search[value]"]) | Q(password__contains=params["search[value]"]), password__isnull=False, hashfile_id=hashfile.id).count()
         else:
-            cracked_list = Cracked.objects.filter(Q(hash__contains=params["search[value]"]) | Q(password__contains=params["search[value]"]), hashfile_id=hashfile.id).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
-            filtered_count = Cracked.objects.filter(Q(hash__contains=params["search[value]"]) | Q(password__contains=params["search[value]"]), hashfile_id=hashfile.id).count()
+            cracked_list = Hash.objects.filter(Q(hash__contains=params["search[value]"]) | Q(password__contains=params["search[value]"]), password__isnull=False, hashfile_id=hashfile.id).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
+            filtered_count = Hash.objects.filter(Q(hash__contains=params["search[value]"]) | Q(password__contains=params["search[value]"]), password__isnull=False, hashfile_id=hashfile.id).count()
 
     data = []
     for cracked in cracked_list:
@@ -283,7 +282,7 @@ def api_hashfile_top_password(request, hashfile_id, N):
 
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
-    pass_count_list = Cracked.objects.raw("SELECT 1 AS id, MAX(password) AS password, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY BINARY password ORDER BY count DESC LIMIT 10", [hashfile.id])
+    pass_count_list = Hash.objects.raw("SELECT 1 AS id, MAX(password) AS password, COUNT(*) AS count FROM Hashcat_hash USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s AND password IS NOT NULL GROUP BY BINARY password ORDER BY count DESC LIMIT 10", [hashfile.id])
 
     top_password_list = []
     count_list = []
@@ -312,7 +311,7 @@ def api_hashfile_top_password_len(request, hashfile_id, N):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
     # didn't found the correct way in pure django...
-    pass_count_list = Cracked.objects.raw("SELECT 1 AS id, MAX(password_len) AS password_len, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY password_len", [hashfile.id])
+    pass_count_list = Hash.objects.raw("SELECT 1 AS id, MAX(password_len) AS password_len, COUNT(*) AS count FROM Hashcat_hash USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s AND password IS NOT NULL GROUP BY password_len", [hashfile.id])
 
     min_len = None
     max_len = None
@@ -356,7 +355,7 @@ def api_hashfile_top_password_charset(request, hashfile_id, N):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
     # didn't found the correct way in pure django...
-    pass_count_list = Cracked.objects.raw("SELECT 1 AS id, MAX(password_charset) AS password_charset, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY password_charset ORDER BY count DESC LIMIT 10", [hashfile.id])
+    pass_count_list = Hash.objects.raw("SELECT 1 AS id, MAX(password_charset) AS password_charset, COUNT(*) AS count FROM Hashcat_hash USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s AND password IS NOT NULL GROUP BY password_charset ORDER BY count DESC LIMIT 10", [hashfile.id])
 
     password_charset_list = []
     count_list = []
@@ -416,20 +415,23 @@ def api_hashfile_action(request):
                 traceback.print_exc()
 
         hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
-        crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", hashfile.crackedfile)
 
         # remove from disk
         try:
             os.remove(hashfile_path)
         except Exception as e:
             messages.error(request, "Error when deleting %s: %s" % (hashfile_path, str(e)))
-        try:
-            os.remove(crackedfile_path)
-        except Exception as e:
-            messages.error(request, "Error when deleting %s: %s" % (crackedfile_path, str(e)))
 
         del_hashfile_locks(hashfile)
+
+        start = time.perf_counter()
+        # deletion is faster using raw SQL queries
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM Hashcat_session WHERE hashfile_id = %s", [hashfile.id])
+        cursor.execute("DELETE FROM Hashcat_hash WHERE hashfile_id = %s", [hashfile.id])
         hashfile.delete()
+        end = time.perf_counter()
+        print(">>> Hashfile %s deleted from database in %fs" % (hashfile.name, end-start))
 
     return HttpResponse(json.dumps({"result": "success"}), content_type="application/json")
 

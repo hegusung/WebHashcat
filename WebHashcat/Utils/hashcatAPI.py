@@ -41,7 +41,7 @@ class HashcatAPI(object):
             "rule": rule,
             "wordlist": wordlist,
             "hashes": hashes,
-            "username_included": hashfile.username_included,
+            "username_included": False,
         }
 
         return self.send("/createSession", data=payload)
@@ -67,7 +67,7 @@ class HashcatAPI(object):
             "hash_mode_id": hashfile.hash_type,
             "mask": mask,
             "hashes": hashes,
-            "username_included": hashfile.username_included,
+            "username_included": False,
         }
 
         return self.send("/createSession", data=payload)

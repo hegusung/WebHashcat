@@ -16,12 +16,6 @@ def init_hashfile_locks(hashfile):
     )
     lock_hashfile.save()
 
-    lock_crackedfile = Lock(
-        hashfile = hashfile,
-        lock_ressource="crackedfile",
-    )
-    lock_crackedfile.save()
-
 def del_hashfile_locks(hashfile):
     # Remove locks in database
 

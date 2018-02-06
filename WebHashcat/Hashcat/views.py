@@ -26,7 +26,7 @@ from django.shortcuts import get_object_or_404
 from operator import itemgetter
 
 from Nodes.models import Node
-from .models import Hashfile, Session, Cracked
+from .models import Hashfile, Session, Hash
 
 from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
@@ -45,14 +45,8 @@ def hashfiles(request):
             hashfile_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".hashfile"
             hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile_name)
 
-            crackedfile_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".crackedfile"
-            crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", crackedfile_name)
-
             hashes = request.POST["hashes"]
-            if hash_type != -1: # if != plaintext
-                f = open(hashfile_path, 'w')
-            else:
-                f = open(crackedfile_path, 'w')
+            f = open(hashfile_path, 'w')
             if len(hashes) == 0 and "hashfile" in request.FILES:
                 for chunk in request.FILES['hashfile'].chunks():
                     f.write(chunk.decode('UTF-8', 'backslashreplace'))
@@ -62,17 +56,11 @@ def hashfiles(request):
 
             username_included = "username_included" in request.POST
 
-            if hash_type != -1: # if != plaintext
-                line_count = sum(1 for _ in open(hashfile_path, errors="backslashreplace"))
-            else:
-                line_count = sum(1 for _ in open(crackedfile_path, errors="backslashreplace"))
-
             hashfile = Hashfile(
                 name=request.POST['name'],
                 hashfile=hashfile_name,
-                crackedfile=crackedfile_name,
                 hash_type=hash_type,
-                line_count=line_count,
+                line_count=0,
                 cracked_count = 0,
                 username_included=username_included,
             )
@@ -84,6 +72,10 @@ def hashfiles(request):
             while not updated:
                 try:
                     if hash_type != -1: # if != plaintext
+                        # import in database
+                        Hashcat.insert_hashes(hashfile)
+
+                        # compare with potfile
                         Hashcat.compare_potfile(hashfile)
                     else:
                         Hashcat.insert_plaintext(hashfile)
@@ -230,8 +222,7 @@ def hashfile(request, hashfile_id, error_msg=''):
 def export_cracked(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
-    crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", hashfile.crackedfile)
-    cracked_hashes = open(crackedfile_path).read()
+    raise NotImplementedError("Export cracked hashes")
 
     response = HttpResponse(cracked_hashes, content_type='application/force-download') # mimetype is replaced by content_type for django 1.7
     response['Content-Disposition'] = 'attachment; filename=%s_cracked.txt' % hashfile.name.replace(" ", "_")
@@ -241,8 +232,7 @@ def export_cracked(request, hashfile_id):
 def export_uncracked(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
-    uncrackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
-    uncracked_hashes = open(uncrackedfile_path).read()
+    raise NotImplementedError("Export uncracked hashes")
 
     response = HttpResponse(uncracked_hashes, content_type='application/force-download') # mimetype is replaced by content_type for django 1.7
     response['Content-Disposition'] = 'attachment; filename=%s_uncracked.txt' % hashfile.name.replace(" ", "_")

@@ -19,10 +19,11 @@ from operator import itemgetter
 from django.db.utils import ProgrammingError
 from django.contrib import messages
 from django.db import transaction
+from django.db import connection
 from django.db.utils import OperationalError
 
 from Utils.models import Lock
-from Hashcat.models import Session, Hashfile, Cracked
+from Hashcat.models import Session, Hashfile, Hash
 from Utils.hashcatAPI import HashcatAPI
 
 class Hashcat(object):
@@ -108,25 +109,26 @@ class Hashcat(object):
         if not potfile:
             potfile = self.get_potfile()
 
+        start = time.perf_counter()
+
         with transaction.atomic():
             # Lock: lock all the potfiles, this way only one instance of hashcat will be running at a time, the --left option eats a lot of RAM...
             potfile_locks = list(Lock.objects.select_for_update().filter(lock_ressource="potfile"))
             # Lock: prevent hashes file from being processed
             hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
-            # Lock: prevent cracked file from being processed
-            crackedfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="crackedfile")[0]
 
             hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
-            crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", hashfile.crackedfile)
 
             # trick to allow multiple instances of hashcat
             session_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
 
-            # Get cracked hashes 
-            cmd_line = [self.get_binary(), '--show', '-m', str(hashfile.hash_type), hashfile_path, '-o', crackedfile_path, '--session', session_name]
+            cracked_file = tempfile.NamedTemporaryFile(delete=False)
+
+            # is there a way to combine --show and --remove in hashcat ?
+
+            # Get cracked hashes
+            cmd_line = [self.get_binary(), '--show', '-m', str(hashfile.hash_type), hashfile_path, '-o', cracked_file.name, '--session', session_name]
             cmd_line += ['--outfile-format', '3']
-            if hashfile.username_included:
-                cmd_line += ['--username']
             if potfile:
                 cmd_line += ['--potfile-path', potfile]
             print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
@@ -138,25 +140,146 @@ class Hashcat(object):
             f.close()
             cmd_line = [self.get_binary(), '--left', '-m', str(hashfile.hash_type), hashfile_path, '-o', f.name, '--session', session_name]
             cmd_line += ['--outfile-format', '1']
-            if hashfile.username_included:
-                cmd_line += ['--username']
             if potfile:
                 cmd_line += ['--potfile-path', potfile]
             print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
             p = subprocess.Popen(cmd_line, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
             p.wait()
 
-            # hashcat over, remove lock on potfile and hashfile
-            del hashfile_lock
-            del potfile_locks
-
             copyfile(f.name, hashfile_path)
             os.remove(f.name)
 
-            if os.path.exists(crackedfile_path):
+            # hashcat over, remove lock on potfile and hashfile
+            del potfile_locks
+            del hashfile_lock
+
+            if os.path.exists(cracked_file.name):
+
+                cursor = connection.cursor()
+                tmp_table_name = "tmp_table_%s" % ''.join(random.choice(string.ascii_lowercase+string.digits) for i in range(10))
+                try:
+                    # create temporary table
+                    cursor.execute("CREATE TEMPORARY TABLE " + tmp_table_name + " (hash char(190) PRIMARY KEY, password varchar(190) NOT NULL, pass_len INTEGER, pass_charset varchar(190), pass_mask varchar(190));")
+                    cursor.execute("SET unique_checks=0;")
+
+                    bulk_insert_list = []
+                    nb_insert = 0
+                    for index, line in enumerate(open(cracked_file.name, encoding='utf-8')):
+                        if index < hashfile.cracked_count:
+                            continue
+
+                        line = line.strip()
+                        password = line.split(":")[-1]
+                        password_hash = ":".join(line.split(":")[0:-1])
+
+                        pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
+
+                        bulk_insert_list += [password_hash, password, pass_len, pass_charset, pass_mask]
+                        nb_insert += 1
+
+                        if nb_insert >= 1000:
+                            cursor.execute("INSERT INTO " + tmp_table_name + " VALUES " + ", ".join(["(%s, %s, %s, %s, %s)"]*nb_insert) + ";", bulk_insert_list)
+                            bulk_insert_list = []
+                            nb_insert = 0
+                    cursor.execute("INSERT INTO " + tmp_table_name + " VALUES " + ", ".join(["(%s, %s, %s, %s, %s)"]*nb_insert) + ";", bulk_insert_list)
+
+                    cursor.execute("UPDATE Hashcat_hash a JOIN " + tmp_table_name + " b ON a.hash = b.hash SET a.password = b.password, a.password_len = b.pass_len, a.password_charset = b.pass_charset, a.password_mask = b.pass_mask;")
+
+                    hashfile.cracked_count = Hash.objects.filter(hashfile_id=hashfile.id, password__isnull=False).count()
+                    hashfile.save()
+
+                except Exception as e:
+                    traceback.print_exc()
+                finally:
+                    cursor.execute("SET unique_checks=1;")
+                    cursor.execute("DROP TABLE %s;" % tmp_table_name)
+
+            os.remove(cracked_file.name)
+
+        end = time.perf_counter()
+        print(">>> Hashfile %s compared to potfile in %fs" % (hashfile.name, end-start))
+
+    # executed only when file is uploaded
+    @classmethod
+    def insert_hashes(self, hashfile):
+
+        start = time.perf_counter()
+
+        with transaction.atomic():
+            # Lock: prevent cracked file from being processed
+            hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
+
+            hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
+            if os.path.exists(hashfile_path):
+                try:
+                    # 1 - import hashfile to database
+                    batch_create_list = []
+                    for index, line in enumerate(open(hashfile_path, encoding='utf-8')):
+                        try:
+                            line = line.strip()
+                            if hashfile.username_included:
+                                username = line.split(":")[0]
+                                password_hash = ":".join(line.split(":")[1:])
+                            else:
+                                username = None
+                                password_hash = line
+                        except IndexError:
+                            continue
+
+                        h = Hash(
+                                hashfile=hashfile,
+                                username=username,
+                                hash=password_hash,
+                                password=None,
+                                password_len=None,
+                                password_charset=None,
+                                password_mask=None,
+                        )
+                        batch_create_list.append(h)
+
+                        if len(batch_create_list) >= 1000:
+                            Hash.objects.bulk_create(batch_create_list)
+                            hashfile.line_count += len(batch_create_list)
+                            hashfile.save()
+                            batch_create_list = []
+                    Hash.objects.bulk_create(batch_create_list)
+                    hashfile.line_count += len(batch_create_list)
+                    hashfile.save()
+
+                    # 2 - if username in hashfile, delete file and create one with only the hashes, 
+                    #     --username takes a lot of RAM with hashcat, this method is better when processing huge hashfile
+                    if hashfile.username_included:
+                        os.remove(hashfile_path)
+
+                        f = open(hashfile_path, "w")
+                        for entry in Hash.objects.filter(hashfile=hashfile).values('hash').distinct():
+                            f.write("%s\n" % entry["hash"])
+                        f.close()
+
+                except Exception as e:
+                    traceback.print_exc()
+
+            # Crackedfile processing if over, remove lock
+            del hashfile_lock
+
+        end = time.perf_counter()
+        print(">>> Hashfile %s inserted in DB in %fs" % (hashfile.name, end-start))
+
+    # executed only when file is uploaded
+    @classmethod
+    def insert_plaintext(self, hashfile):
+
+        start = time.perf_counter()
+
+        with transaction.atomic():
+            # Lock: prevent cracked file from being processed
+            hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
+
+            hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
+            if os.path.exists(hashfile_path):
                 try:
                     batch_create_list = []
-                    for index, line in enumerate(open(crackedfile_path, encoding='utf-8')):
+                    for index, line in enumerate(open(hashfile_path, encoding='utf-8')):
                         if index < hashfile.cracked_count:
                             continue
 
@@ -164,14 +287,14 @@ class Hashcat(object):
                         password = line.split(":")[-1]
                         if hashfile.username_included:
                             username = line.split(":")[0]
-                            password_hash = ":".join(line.split(":")[1:-1])
+                            password_hash = ""
                         else:
                             username = None
-                            password_hash = ":".join(line.split(":")[0:-1])
+                            password_hash = ""
 
                         pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
 
-                        cracked = Cracked(
+                        h = Hash(
                                 hashfile=hashfile,
                                 username=username,
                                 password=password,
@@ -180,75 +303,27 @@ class Hashcat(object):
                                 password_charset=pass_charset,
                                 password_mask=pass_mask,
                         )
-                        batch_create_list.append(cracked)
+                        batch_create_list.append(h)
 
                         if len(batch_create_list) >= 1000:
-                            Cracked.objects.bulk_create(batch_create_list)
+                            Hash.objects.bulk_create(batch_create_list)
                             hashfile.cracked_count += len(batch_create_list)
+                            hashfile.line_count += len(batch_create_list)
                             hashfile.save()
                             batch_create_list = []
-                    Cracked.objects.bulk_create(batch_create_list)
+                    Hash.objects.bulk_create(batch_create_list)
                     hashfile.cracked_count += len(batch_create_list)
+                    hashfile.line_count += len(batch_create_list)
                     hashfile.save()
 
                 except Exception as e:
                     traceback.print_exc()
 
             # Crackedfile processing if over, remove lock
-            del crackedfile_lock
+            del hashfile_lock
 
-    @classmethod
-    def insert_plaintext(self, crackedfile):
-        with transaction.atomic():
-            # Lock: prevent cracked file from being processed
-            crackedfile_lock = Lock.objects.select_for_update().filter(hashfile_id=crackedfile.id, lock_ressource="crackedfile")[0]
-
-            crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", crackedfile.crackedfile)
-            if os.path.exists(crackedfile_path):
-                try:
-                    batch_create_list = []
-                    for index, line in enumerate(open(crackedfile_path, encoding='utf-8')):
-                        if index < crackedfile.cracked_count:
-                            continue
-
-                        line = line.strip()
-                        password = line.split(":")[-1]
-                        if crackedfile.username_included:
-                            username = line.split(":")[0]
-                            password_hash = ""
-                        else:
-                            username = None
-                            password_hash = ""
-
-                        pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
-
-                        cracked = Cracked(
-                                hashfile=crackedfile,
-                                username=username,
-                                password=password,
-                                hash=password_hash,
-                                password_len=pass_len,
-                                password_charset=pass_charset,
-                                password_mask=pass_mask,
-                        )
-                        batch_create_list.append(cracked)
-
-                        if len(batch_create_list) >= 1000:
-                            Cracked.objects.bulk_create(batch_create_list)
-                            crackedfile.cracked_count += len(batch_create_list)
-                            crackedfile.save()
-                            batch_create_list = []
-                    Cracked.objects.bulk_create(batch_create_list)
-                    crackedfile.cracked_count += len(batch_create_list)
-                    crackedfile.save()
-
-                except Exception as e:
-                    traceback.print_exc()
-
-
-
-            # Crackedfile processing if over, remove lock
-            del crackedfile_lock
+        end = time.perf_counter()
+        print(">>> Plaintext file %s inserted in DB in %fs" % (hashfile.name, end-start))
 
     @classmethod
     def get_rules(self, detailed=True):
