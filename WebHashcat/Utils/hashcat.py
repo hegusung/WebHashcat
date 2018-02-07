@@ -25,6 +25,7 @@ from django.db.utils import OperationalError
 from Utils.models import Lock
 from Hashcat.models import Session, Hashfile, Hash
 from Utils.hashcatAPI import HashcatAPI
+from Utils.utils import del_hashfile_locks
 
 class Hashcat(object):
     _hash_types = {}
@@ -108,8 +109,6 @@ class Hashcat(object):
     def compare_potfile(self, hashfile, potfile=None):
         if not potfile:
             potfile = self.get_potfile()
-
-        start = time.perf_counter()
 
         with transaction.atomic():
             # Lock: lock all the potfiles, this way only one instance of hashcat will be running at a time, the --left option eats a lot of RAM...
@@ -196,14 +195,9 @@ class Hashcat(object):
 
             os.remove(cracked_file.name)
 
-        end = time.perf_counter()
-        print(">>> Hashfile %s compared to potfile in %fs" % (hashfile.name, end-start))
-
     # executed only when file is uploaded
     @classmethod
     def insert_hashes(self, hashfile):
-
-        start = time.perf_counter()
 
         with transaction.atomic():
             # Lock: prevent cracked file from being processed
@@ -247,7 +241,7 @@ class Hashcat(object):
                     hashfile.save()
 
                     # 2 - if username in hashfile, delete file and create one with only the hashes, 
-                    #     --username takes a lot of RAM with hashcat, this method is better when processing huge hashfile
+                    #     --username takes a lot of RAM with hashcat, this method is better when processing huge hashfiles
                     if hashfile.username_included:
                         os.remove(hashfile_path)
 
@@ -262,14 +256,9 @@ class Hashcat(object):
             # Crackedfile processing if over, remove lock
             del hashfile_lock
 
-        end = time.perf_counter()
-        print(">>> Hashfile %s inserted in DB in %fs" % (hashfile.name, end-start))
-
     # executed only when file is uploaded
     @classmethod
     def insert_plaintext(self, hashfile):
-
-        start = time.perf_counter()
 
         with transaction.atomic():
             # Lock: prevent cracked file from being processed
@@ -321,9 +310,6 @@ class Hashcat(object):
 
             # Crackedfile processing if over, remove lock
             del hashfile_lock
-
-        end = time.perf_counter()
-        print(">>> Plaintext file %s inserted in DB in %fs" % (hashfile.name, end-start))
 
     @classmethod
     def get_rules(self, detailed=True):
@@ -490,8 +476,6 @@ class Hashcat(object):
         with transaction.atomic():
             potfile_locks = list(Lock.objects.select_for_update().filter(lock_ressource="potfile"))
 
-            print("Updating potfile")
-
             # update the potfile
             for session in Session.objects.all():
                 try:
@@ -526,8 +510,9 @@ class Hashcat(object):
 
                 except ConnectionRefusedError:
                     pass
-
-            print("Done updating potfile")
+                except OperationalError:
+                    # database is locked
+                    pass
 
             del potfile_locks
 
@@ -553,6 +538,39 @@ class Hashcat(object):
         elif potfile_line_count < potfile_backup_line_count:
             # It can happen when the RAW is full, hashcat fails and the potfile might get corrupted
             print("ERROR: potfile corrupted !!!!")
+
+    @classmethod
+    def remove_hashfile(self, hashfile):
+        # Check if there is a running session
+        for session in Session.objects.filter(hashfile_id=hashfile.id):
+            node = session.node
+
+            try:
+                hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
+                hashcat_api.action(session.name, "remove")
+            except Exception as e:
+                traceback.print_exc()
+
+        hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
+
+        # remove from disk
+        try:
+            os.remove(hashfile_path)
+        except Exception as e:
+            pass
+
+        del_hashfile_locks(hashfile)
+
+        start = time.perf_counter()
+        # deletion is faster using raw SQL queries
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM Hashcat_session WHERE hashfile_id = %s", [hashfile.id])
+        cursor.execute("DELETE FROM Hashcat_hash WHERE hashfile_id = %s", [hashfile.id])
+        hashfile.delete()
+        end = time.perf_counter()
+        print(">>> Hashfile %s deleted from database in %fs" % (hashfile.name, end-start))
+
+
 
 # This function is taken from https://github.com/iphelix/pack
 

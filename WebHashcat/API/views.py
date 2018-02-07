@@ -27,10 +27,12 @@ from operator import itemgetter
 
 from Hashcat.models import Hashfile, Session, Hash
 from Nodes.models import Node
+from Utils.models import Task
 
 from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
 from Utils.utils import del_hashfile_locks
+from Utils.tasks import remove_hashfile_task
 # Create your views here.
 
 @login_required
@@ -404,34 +406,7 @@ def api_hashfile_action(request):
     print("Hashfile %s action %s" % (hashfile.name, params["action"])) 
 
     if params["action"] == "remove":
-        # Check if there is a running session
-        for session in Session.objects.filter(hashfile_id=hashfile.id):
-            node = session.node
-
-            try:
-                hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
-                hashcat_api.action(session.name, "remove")
-            except Exception as e:
-                traceback.print_exc()
-
-        hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
-
-        # remove from disk
-        try:
-            os.remove(hashfile_path)
-        except Exception as e:
-            messages.error(request, "Error when deleting %s: %s" % (hashfile_path, str(e)))
-
-        del_hashfile_locks(hashfile)
-
-        start = time.perf_counter()
-        # deletion is faster using raw SQL queries
-        cursor = connection.cursor()
-        cursor.execute("DELETE FROM Hashcat_session WHERE hashfile_id = %s", [hashfile.id])
-        cursor.execute("DELETE FROM Hashcat_hash WHERE hashfile_id = %s", [hashfile.id])
-        hashfile.delete()
-        end = time.perf_counter()
-        print(">>> Hashfile %s deleted from database in %fs" % (hashfile.name, end-start))
+        remove_hashfile_task.delay(hashfile.id)
 
     return HttpResponse(json.dumps({"result": "success"}), content_type="application/json")
 
@@ -444,3 +419,15 @@ def api_update_hashfiles(request):
     Hashcat.update_hashfiles()
 
     return HttpResponse(json.dumps({"result": "success"}), content_type="application/json")
+
+def api_get_messages(request):
+    if request.method == "POST":
+        params = request.POST
+    else:
+        params = request.GET
+
+    message_list = []
+    for task in Task.objects.all():
+        message_list.append({"message": task.message})
+
+    return HttpResponse(json.dumps({"result": "success", "messages": message_list}), content_type="application/json")

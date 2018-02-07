@@ -31,6 +31,7 @@ from .models import Hashfile, Session, Hash
 from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
 from Utils.utils import init_hashfile_locks
+from Utils.tasks import import_hashfile_task
 # Create your views here.
 
 @login_required
@@ -68,6 +69,7 @@ def hashfiles(request):
             init_hashfile_locks(hashfile)
 
             # Update the new file with the potfile, this may take a while
+            """
             updated = False
             while not updated:
                 try:
@@ -83,6 +85,9 @@ def hashfiles(request):
                 except OperationalError:
                     # db locked, try again !!!
                     pass
+            """
+
+            import_hashfile_task.delay(hashfile.id)
 
             if hash_type != -1: # if != plaintext
                 messages.success(request, "Hashfile successfully added")
