@@ -13,6 +13,7 @@ from django.shortcuts import redirect
 from django.template import loader
 from django.urls import reverse
 from django.http import HttpResponse
+from django.http import StreamingHttpResponse
 from django.contrib.auth.decorators import login_required
 from django.middleware.csrf import get_token
 from django.db.models import Q, Count, BinaryField
@@ -31,6 +32,7 @@ from .models import Hashfile, Session, Hash
 from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
 from Utils.utils import init_hashfile_locks
+from Utils.utils import Echo
 from Utils.tasks import import_hashfile_task
 # Create your views here.
 
@@ -209,20 +211,28 @@ def hashfile(request, hashfile_id, error_msg=''):
 def export_cracked(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
-    raise NotImplementedError("Export cracked hashes")
+    cracked_hashes = Hash.objects.filter(hashfile_id=hashfile.id, password__isnull=False)
 
-    response = HttpResponse(cracked_hashes, content_type='application/force-download') # mimetype is replaced by content_type for django 1.7
-    response['Content-Disposition'] = 'attachment; filename=%s_cracked.txt' % hashfile.name.replace(" ", "_")
+    if hashfile.username_included:
+        response = StreamingHttpResponse(("%s:%s\n" % (item.username, item.password) for item in cracked_hashes), content_type="text/txt")
+    else:
+        response = StreamingHttpResponse(("%s:%s\n" % (item.hash, item.password) for item in cracked_hashes), content_type="text/txt")
+
+    response['Content-Disposition'] = 'attachment; filename="cracked.txt"'
     return response
 
 @login_required
 def export_uncracked(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
-    raise NotImplementedError("Export uncracked hashes")
+    uncracked_hashes = Hash.objects.filter(hashfile_id=hashfile.id, password__isnull=True)
 
-    response = HttpResponse(uncracked_hashes, content_type='application/force-download') # mimetype is replaced by content_type for django 1.7
-    response['Content-Disposition'] = 'attachment; filename=%s_uncracked.txt' % hashfile.name.replace(" ", "_")
+    if hashfile.username_included:
+        response = StreamingHttpResponse(("%s:%s\n" % (item.username, item.hash) for item in uncracked_hashes), content_type="text/txt")
+    else:
+        response = StreamingHttpResponse(("%s\n" % (item.hash,) for item in uncracked_hashes), content_type="text/txt")
+
+    response['Content-Disposition'] = 'attachment; filename="uncracked.txt"'
     return response
 
 @login_required
@@ -230,20 +240,12 @@ def csv_masks(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
     # didn't found the correct way in pure django...
-    res = Cracked.objects.raw("SELECT 1 AS id, MAX(password_mask) AS password_mask, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY password_mask ORDER BY count DESC", [hashfile.id])
+    rows = Hash.objects.raw("SELECT 1 AS id, MAX(password_mask) AS password_mask, COUNT(*) AS count FROM Hashcat_hash WHERE hashfile_id=%s AND password_mask IS NOT NULL GROUP BY password_mask ORDER BY count DESC", [hashfile.id])
 
-    fp = tempfile.SpooledTemporaryFile(mode='w')
-    csvfile = csv.writer(fp, quotechar='"', quoting=csv.QUOTE_ALL)
-    for item in res:
-        csvfile.writerow([item.count, item.password_mask])
-    fp.seek(0)   # rewind the file handle
+    pseudo_buffer = Echo()
+    writer = csv.writer(pseudo_buffer)
 
-    csvfile_data = fp.read()
+    response = StreamingHttpResponse((writer.writerow([item.password_mask, item.count]) for item in rows), content_type="text/csv")
 
-    for query in connection.queries[-1:]:
-        print(query["sql"])
-        print(query["time"])
-
-    response = HttpResponse(csvfile_data, content_type='application/force-download') # mimetype is replaced by content_type for django 1.7
-    response['Content-Disposition'] = 'attachment; filename=%s_masks.csv' % hashfile.name
+    response['Content-Disposition'] = 'attachment; filename="masks.csv"'
     return response
