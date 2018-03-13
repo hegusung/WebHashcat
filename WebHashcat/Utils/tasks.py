@@ -9,6 +9,7 @@ from celery.signals import celeryd_after_setup
 from Hashcat.models import Session, Hashfile, Hash
 from Utils.hashcat import Hashcat
 from Utils.models import Task
+from Utils.utils import only_one
 
 logger = get_task_logger(__name__)
 
@@ -73,5 +74,6 @@ def remove_hashfile_task(hashfile_id):
     name="update_potfile_task",
     ignore_result=True
 )
+@only_one(key="UpdatePotfile", timeout=6*60*60)
 def update_potfile_task():
     Hashcat.update_hashfiles()

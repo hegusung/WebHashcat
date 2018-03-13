@@ -1,3 +1,5 @@
+import functools
+import redis
 from django.db import transaction
 from .models import Lock
 
@@ -32,3 +34,30 @@ class Echo:
         """Write the value by returning it, instead of storing in a buffer."""
         return value
 
+
+REDIS_CLIENT = redis.Redis()
+
+def only_one(function=None, key="", timeout=None):
+    """Enforce only one celery task at a time."""
+
+    def _dec(run_func):
+        """Decorator."""
+
+        def _caller(*args, **kwargs):
+            """Caller."""
+            ret_value = None
+            have_lock = False
+            lock = REDIS_CLIENT.lock(key, timeout=timeout)
+            try:
+                have_lock = lock.acquire(blocking=False)
+                if have_lock:
+                    ret_value = run_func(*args, **kwargs)
+            finally:
+                if have_lock:
+                    lock.release()
+
+            return ret_value
+
+        return _caller
+
+    return _dec(function) if function is not None else _dec
