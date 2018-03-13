@@ -121,8 +121,6 @@ class Hashcat(object):
 
         # is there a way to combine --show and --remove in hashcat ?
 
-        start = time.perf_counter()
-
         # Get cracked hashes
         cmd_line = [self.get_binary(), '--show', '-m', str(hashfile.hash_type), hashfile_path, '-o', cracked_file.name, '--session', session_name]
         cmd_line += ['--outfile-format', '3']
@@ -131,12 +129,6 @@ class Hashcat(object):
         print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
         p = subprocess.Popen(cmd_line, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         p.wait()
-
-        end = time.perf_counter()
-        print("Hashcat1 time: %fs" % (end-start,))
-
-
-        start = time.perf_counter()
 
         # Remove cracked hashes from list
         f = tempfile.NamedTemporaryFile(delete=False)
@@ -148,9 +140,6 @@ class Hashcat(object):
         print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
         p = subprocess.Popen(cmd_line, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         p.wait()
-
-        end = time.perf_counter()
-        print("Hashcat2 time: %fs" % (end-start,))
 
         copyfile(f.name, hashfile_path)
         os.remove(f.name)
@@ -165,7 +154,6 @@ class Hashcat(object):
 
             cursor = connection.cursor()
             tmp_table_name = "tmp_table_%s" % ''.join(random.choice(string.ascii_lowercase+string.digits) for i in range(10))
-            print("tmp table %s" % tmp_table_name)
             try:
                 # create temporary table
                 cursor.execute("BEGIN;")
@@ -528,7 +516,6 @@ class Hashcat(object):
         self.backup_potfile()
 
         updated_hashfile_ids = self.update_potfile()
-        print(updated_hashfile_ids)
 
         for hashfile_id in updated_hashfile_ids:
             hashfile = Hashfile.objects.get(id=hashfile_id)
