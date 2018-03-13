@@ -556,10 +556,6 @@ class Hashcat(object):
 
                                 remaining = potfile_data["remaining_data"]
 
-                                # Probably quicker than a python equivalent code
-                                tmp_potfile = "/tmp/webhashcat_potfile"
-                                os.system("sort %s | uniq > %s; mv %s %s" % (Hashcat.get_potfile(), tmp_potfile, tmp_potfile, Hashcat.get_potfile()))
-
                                 updated_hashfile_ids.append(session.hashfile.id)
                             else:
                                 remaining = False
@@ -573,6 +569,30 @@ class Hashcat(object):
                 print("Error: potfile locked")
 
         return list(set(updated_hashfile_ids))
+
+    @classmethod
+    def optimize_potfile(self):
+
+        self.backup_potfile()
+
+        optimized = False
+        while not optimized:
+            with transaction.atomic():
+                try:
+                    # Lock: prevent the potfile from being modified
+                    potfile_locks = list(Lock.objects.select_for_update().filter(lock_ressource="potfile"))
+
+                    # Probably quicker than a python equivalent code
+                    tmp_potfile = "/tmp/webhashcat_potfile"
+                    os.system("sort %s | uniq > %s; mv %s %s" % (Hashcat.get_potfile(), tmp_potfile, tmp_potfile, Hashcat.get_potfile()))
+
+                    del potfile_locks
+
+                    optimized = True
+
+                except OperationalError as e:
+                    pass
+
 
     @classmethod
     def backup_potfile(self):

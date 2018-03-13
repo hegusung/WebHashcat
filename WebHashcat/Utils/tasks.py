@@ -77,3 +77,13 @@ def remove_hashfile_task(hashfile_id):
 @only_one(key="UpdatePotfile", timeout=6*60*60)
 def update_potfile_task():
     Hashcat.update_hashfiles()
+
+@periodic_task(
+    run_every=(crontab(hour=3, minute=0)),
+    name="optimize_potfile",
+    ignore_result=True
+)
+@only_one(key="OptimizePotfile", timeout=6*60*60)
+def optimize_potfile():
+        Hashcat.optimize_potfile()
+
