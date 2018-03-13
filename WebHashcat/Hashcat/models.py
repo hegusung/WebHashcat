@@ -20,6 +20,7 @@ class Session(models.Model):
 
 class Hash(models.Model):
     hashfile = models.ForeignKey(Hashfile, on_delete=models.CASCADE)
+    hash_type = models.IntegerField()
     username = models.CharField(max_length=190, null=True)
     password = models.CharField(max_length=190, null=True)
     hash = models.CharField(max_length=190, null=True)
@@ -29,6 +30,8 @@ class Hash(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['hashfile_id'], name="hashfileid_id_index"),
+            models.Index(fields=['hashfile_id'], name="hashfileid_index"),
+            models.Index(fields=['hashfile_id', 'hash'], name="hashfileid_hash_index"),
+            models.Index(fields=['hash', 'hash_type'], name="hash_index"),
         ]
 

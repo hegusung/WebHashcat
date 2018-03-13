@@ -1,4 +1,6 @@
 import socket
+import requests
+from requests_toolbelt.multipart import encoder
 import http.client
 import ssl
 import threading
@@ -30,21 +32,20 @@ class HashcatAPI(object):
             # Prevent hashfile from being modified while read 
             hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
 
-            hashes = open(hashfile_path).read()
+            payload = {
+                "name": session_name,
+                "crack_type": "dictionary",
+                "hash_mode_id": hashfile.hash_type,
+                "rule": rule,
+                "wordlist": wordlist,
+                "username_included": False,
+            }
+
+            res = self.post_file("/createSession", payload, hashfile_path)
 
             del hashfile_lock
 
-        payload = {
-            "name": session_name,
-            "crack_type": "dictionary",
-            "hash_mode_id": hashfile.hash_type,
-            "rule": rule,
-            "wordlist": wordlist,
-            "hashes": hashes,
-            "username_included": False,
-        }
-
-        return self.send("/createSession", data=payload)
+        return res
 
     def create_mask_session(self, session_name, hashfile, mask):
         hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
@@ -57,20 +58,21 @@ class HashcatAPI(object):
             # Prevent hashfile from being modified while read 
             hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
 
-            hashes = open(hashfile_path).read()
+
+            payload = {
+                "name": session_name,
+                "crack_type": "mask",
+                "hash_mode_id": hashfile.hash_type,
+                "mask": mask,
+                "hashes": hashes,
+                "username_included": False,
+            }
+
+            res = self.post_file("/createSession", payload, hashfile_path)
 
             del hashfile_lock
 
-        payload = {
-            "name": session_name,
-            "crack_type": "mask",
-            "hash_mode_id": hashfile.hash_type,
-            "mask": mask,
-            "hashes": hashes,
-            "username_included": False,
-        }
-
-        return self.send("/createSession", data=payload)
+        return res
 
 
     def action(self, session_name, action):
@@ -144,4 +146,18 @@ class HashcatAPI(object):
 
         conn.close()
         return json.loads(data.decode("ascii"))
+
+    def post_file(self, url, data, filepath):
+        url = "https://%s:%d%s" % (self.ip, self.port, url)
+
+        form = encoder.MultipartEncoder({
+            'json': (None, json.dumps(data), 'application/json'),
+            'file': ("file", open(filepath, 'rb'), 'application/octet-stream')
+        })
+
+        res = requests.post(url, data=form, headers={'Content-Type': form.content_type}, verify=False)
+
+        data = res.text
+
+        return json.loads(data)
 

@@ -2,6 +2,7 @@ WebHashcat/WebHashcat/settings.py
 WebHashcat/settings.ini
 WebHashcat/db.sqlite3
 WebHashcat/Files/potfile*
+WebHashcat/Files/tmp/*
 WebHashcat/Files/Hashfiles/*.hashfile
 WebHashcat/Files/Crackedfiles/*.crackedfile
 WebHashcat/Files/Maskfiles/*.hcmask

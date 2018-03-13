@@ -68,25 +68,7 @@ def hashfiles(request):
             hashfile.save()
             init_hashfile_locks(hashfile)
 
-            # Update the new file with the potfile, this may take a while
-            """
-            updated = False
-            while not updated:
-                try:
-                    if hash_type != -1: # if != plaintext
-                        # import in database
-                        Hashcat.insert_hashes(hashfile)
-
-                        # compare with potfile
-                        Hashcat.compare_potfile(hashfile)
-                    else:
-                        Hashcat.insert_plaintext(hashfile)
-                    updated = True
-                except OperationalError:
-                    # db locked, try again !!!
-                    pass
-            """
-
+            # Update the new file with the potfile, this may take a while, but it is processed in a background task
             import_hashfile_task.delay(hashfile.id)
 
             if hash_type != -1: # if != plaintext

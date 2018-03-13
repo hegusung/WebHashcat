@@ -13,7 +13,6 @@ urlpatterns = [
         url(r'^hashfile_top_password/(.*)/(.*)$', views.api_hashfile_top_password, name='api_hashfile_top_password'),
         url(r'^hashfile_top_password_len/(.*)/(.*)$', views.api_hashfile_top_password_len, name='api_hashfile_top_password_len'),
         url(r'^hashfile_top_password_charset/(.*)/(.*)$', views.api_hashfile_top_password_charset, name='api_hashfile_top_password_charset'),
-        url(r'^update_hashfiles$', views.api_update_hashfiles, name='api_update_hashfiles'),
         url(r'^get_messages$', views.api_get_messages, name='api_get_messages'),
 ]
 

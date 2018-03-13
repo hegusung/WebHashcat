@@ -4,12 +4,18 @@ from celery.task.schedules import crontab
 from celery.decorators import task
 from celery.decorators import periodic_task
 from celery.utils.log import get_task_logger
+from celery.signals import celeryd_after_setup
 
 from Hashcat.models import Session, Hashfile, Hash
 from Utils.hashcat import Hashcat
 from Utils.models import Task
 
 logger = get_task_logger(__name__)
+
+@celeryd_after_setup.connect
+def cleanup_tasks(sender, instance, **kwargs):
+    for task in Task.objects.all():
+        task.delete()
 
 @task(name="import_hashfile_task")
 def import_hashfile_task(hashfile_id):
@@ -55,9 +61,12 @@ def remove_hashfile_task(hashfile_id):
     )
     task.save()
 
-    Hashcat.remove_hashfile(hashfile)
-
-    task.delete()
+    try:
+        Hashcat.remove_hashfile(hashfile)
+    except Exception as e:
+        traceback.print_exc()
+    finally:
+        task.delete()
 
 @periodic_task(
     run_every=(crontab(minute='*/5')),
@@ -65,4 +74,4 @@ def remove_hashfile_task(hashfile_id):
     ignore_result=True
 )
 def update_potfile_task():
-    Hashcat.update_potfile()
+    Hashcat.update_hashfiles()

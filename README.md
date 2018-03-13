@@ -130,12 +130,12 @@ CREATE DATABASE webhashcat CHARACTER SET utf8;
 * If you want to set up the interface with a proper webserver like apache or nginx please refer to the following documentation:
 https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/modwsgi/
 
-#### Setting up the automatic hashfile updates
+#### Setting up supervisor
 
-* Register the following command in a crontab (in the following example the hashfiles will be updated every 5 minutes):
-```
-*/5 * * * *    /path/to/WebHashcat/cron.py <webhashcat_ip/host> <webhashcat_port> [--ssl]
-```
+Supervisor is the deamon which is responsible of heavy background tasks such as pulling latest results from the nodes or importing hashfiles.
+
+* After installing supervisor, copy the configuration files from the Webhashcat/supervisor folder to the /etc/supervisor.d/ folder.
+* Once done, edit them to match your configuration
 
 #### Dependencies
 
@@ -145,4 +145,14 @@ https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/modwsgi/
 - mysqlclient
 - humanize
 - requests
+- requests-toolbelt
 - schedule
+- celery
+- supervisor
+
+## Operating System improvements
+
+If you are willing to process more than 10M hashes, I recommend you to apply the following mofication to your system:
+* Increase the your /tmp size: Mysql tends to put a lot of data in the /tmp directory when processing huge hashfiles
+* Increase your swap partition size
+* If you use InnoDB tables in you MySQL configuration, I recommend you to edit your my.cnf configuration file and increase the innodb_buffer_pool_size value. This way MySQL will be able to allocate sufficiant memory when updating cracked hashes.
