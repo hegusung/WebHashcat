@@ -37,6 +37,14 @@ from Utils.tasks import import_hashfile_task
 # Create your views here.
 
 @login_required
+def dashboard(request):
+    context = {}
+    context["Section"] = "Dashboard"
+
+    template = loader.get_template('Hashcat/dashboard.html')
+    return HttpResponse(template.render(context, request))
+
+@login_required
 def hashfiles(request):
     context = {}
     context["Section"] = "Hashes"

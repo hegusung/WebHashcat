@@ -21,6 +21,7 @@ from django.db.models import Q, Count, BinaryField
 from django.db.models.functions import Cast
 from django.db import connection
 from django.contrib import messages
+from django.db.models import Sum
 
 from django.shortcuts import get_object_or_404
 
@@ -80,6 +81,137 @@ def api_node_status(request):
         print(query["time"])
 
     return HttpResponse(json.dumps(result), content_type="application/json")
+
+@login_required
+def api_statistics(request):
+    if request.method == "POST":
+        params = request.POST
+    else:
+        params = request.GET
+
+    result = {
+        "draw": params["draw"],
+    }
+
+    data = []
+
+    count_lines = Hashfile.objects.aggregate(Sum('line_count'))["line_count__sum"]
+    count_cracked = Hashfile.objects.aggregate(Sum('cracked_count'))["cracked_count__sum"]
+    data.append(["<b>Lines</b>", humanize.intcomma(count_lines)])
+    data.append(["<b>Cracked</b>", "%s (%.2f%%)" % (humanize.intcomma(count_cracked), count_cracked/count_lines*100.0)])
+    data.append(["<b>Hashfiles</b>", Hashfile.objects.count()])
+    data.append(["<b>Nodes</b>", Node.objects.count()])
+
+    result["data"] = data
+
+    return HttpResponse(json.dumps(result), content_type="application/json")
+
+@login_required
+def api_cracked_ratio(request):
+    if request.method == "POST":
+        params = request.POST
+    else:
+        params = request.GET
+
+    count_lines = Hashfile.objects.aggregate(Sum('line_count'))["line_count__sum"]
+    count_cracked = Hashfile.objects.aggregate(Sum('cracked_count'))["cracked_count__sum"]
+
+    result = [
+        ["Cracked", count_cracked/count_lines*100.0],
+        ["Uncracked", (1-count_cracked/count_lines)*100.0],
+    ]
+
+    return HttpResponse(json.dumps(result), content_type="application/json")
+
+
+@login_required
+def api_running_sessions(request):
+    if request.method == "POST":
+        params = request.POST
+    else:
+        params = request.GET
+
+    result = {
+        "draw": params["draw"],
+    }
+
+    data = []
+    for session in Session.objects.all():
+        node = session.node
+
+        try:
+            hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
+            session_info = hashcat_api.get_session_info(session.name)
+
+            if session_info["status"] == "Running":
+                if session_info["crack_type"] == "dictionary":
+                    rule_mask = session_info["rule"]
+                    wordlist = session_info["wordlist"]
+                elif session_info["crack_type"] == "mask":
+                    rule_mask = session_info["mask"]
+                    wordlist = ""
+
+                data.append({
+                    "hashfile": session.hashfile.name,
+                    "node": node.name,
+                    "type": session_info["crack_type"],
+                    "rule_mask": rule_mask,
+                    "wordlist": wordlist,
+                    "remaining": session_info["time_estimated"],
+                    "progress": "%s %%" % session_info["progress"],
+                    "speed": session_info["speed"].split('@')[0].strip(),
+                })
+        except ConnectionRefusedError:
+            pass
+
+    result["data"] = data
+
+    return HttpResponse(json.dumps(result), content_type="application/json")
+
+@login_required
+def api_error_sessions(request):
+    if request.method == "POST":
+        params = request.POST
+    else:
+        params = request.GET
+
+    result = {
+        "draw": params["draw"],
+    }
+
+    data = []
+    for session in Session.objects.all():
+        node = session.node
+
+        try:
+            hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
+            session_info = hashcat_api.get_session_info(session.name)
+
+            if not session_info["status"] in ["Not started", "Running", "Paused", "Done"]:
+                if session_info["crack_type"] == "dictionary":
+                    rule_mask = session_info["rule"]
+                    wordlist = session_info["wordlist"]
+                elif session_info["crack_type"] == "mask":
+                    rule_mask = session_info["mask"]
+                    wordlist = ""
+
+                data.append({
+                    "hashfile": session.hashfile.name,
+                    "node": node.name,
+                    "type": session_info["crack_type"],
+                    "rule_mask": rule_mask,
+                    "wordlist": wordlist,
+                    "status": session_info["status"],
+                    "reason": "TODO",
+                })
+        except ConnectionRefusedError:
+            pass
+
+    result["data"] = data
+
+    return HttpResponse(json.dumps(result), content_type="application/json")
+
+
 
 @login_required
 def api_hashfiles(request):

@@ -4,7 +4,7 @@ from . import views
 
 app_name = 'Hashcat'
 urlpatterns = [
-        url(r'^$', views.hashfiles, name='index'),
+        url(r'^$', views.dashboard, name='index'),
         url(r'^hashfiles$', views.hashfiles, name='hashfiles'),
         url(r'^files$', views.files, name='files'),
         url(r'^new_session$', views.new_session, name='new_session'),

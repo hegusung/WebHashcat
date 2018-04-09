@@ -4,6 +4,10 @@ from . import views
 
 app_name = 'API'
 urlpatterns = [
+        url(r'^statistics$', views.api_statistics, name='api_statistics'),
+        url(r'^cracked_ratio$', views.api_cracked_ratio, name='api_cracked_ratio'),
+        url(r'^running_sessions$', views.api_running_sessions, name='api_running_sessions'),
+        url(r'^error_sessions$', views.api_error_sessions, name='api_error_sessions'),
         url(r'^node_status$', views.api_node_status, name='api_node_status'),
         url(r'^hashfiles$', views.api_hashfiles, name='api_hashfiles'),
         url(r'^hashfile_sessions$', views.api_hashfile_sessions, name='api_hashfile_sessions'),
