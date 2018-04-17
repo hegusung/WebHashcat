@@ -4,8 +4,9 @@ from . import views
 
 app_name = 'Hashcat'
 urlpatterns = [
-        url(r'^$', views.hashfiles, name='index'),
+        url(r'^$', views.dashboard, name='index'),
         url(r'^hashfiles$', views.hashfiles, name='hashfiles'),
+        url(r'^search$', views.search, name='search'),
         url(r'^files$', views.files, name='files'),
         url(r'^new_session$', views.new_session, name='new_session'),
         url(r'^upload_rule$', views.upload_rule, name='upload_rule'),
@@ -15,5 +16,6 @@ urlpatterns = [
         url(r'^file/cracked/(.*)$', views.export_cracked, name='export_cracked'),
         url(r'^file/uncracked/(.*)$', views.export_uncracked, name='export_uncracked'),
         url(r'^csv/masks/(.*)$', views.csv_masks, name='csv_masks'),
+        url(r'^export_search/(.*)$', views.export_search, name='export_search'),
 ]
 

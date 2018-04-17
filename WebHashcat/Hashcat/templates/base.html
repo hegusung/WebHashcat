@@ -52,14 +52,14 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a class="navbar-brand" href="#">WebHashcat</a>
+          <a class="navbar-brand" href="{% url "Hashcat:index" %}">WebHashcat</a>
         </div>
         <div id="navbar" class="navbar-collapse collapse">
           <ul class="nav navbar-nav">
             {% if Section == "Hashes" or Section == "Files" or Section == "Hashfile" %}
-               <li class="active"><a href="{% url "Hashcat:index" %}">Hashcat</a></li>
+               <li class="active"><a href="{% url "Hashcat:hashfiles" %}">Hashcat</a></li>
             {% else %}
-               <li ><a href="{% url "Hashcat:index" %}">Hashcat</a></li>
+               <li ><a href="{% url "Hashcat:hashfiles" %}">Hashcat</a></li>
             {% endif %}
             {% if Section == "Nodes" %}
                <li class="active"><a href="{% url "Nodes:nodes" %}">Nodes</a></li>
@@ -74,14 +74,17 @@
     <div class="container-fluid">
       <div class="row">
 
+        {% if Section != "Dashboard" %}
+
         <div class="col-sm-3 col-md-2 sidebar">
-          {% if Section == "Hashes" or Section == "Files" or Section == "Hashfile" %}
+          {% if Section == "Hashes" or Section == "Search" or Section == "Files" or Section == "Hashfile" %}
           <ul class="nav nav-sidebar">
             {% if Section == "Hashes" or Section == "Hashfile" %}
                <li class="active"><a href="{% url "Hashcat:hashfiles" %}">Hashfiles</a></li>
             {% else %}
                <li ><a href="{% url "Hashcat:hashfiles" %}">Hashfiles</a></li>
             {% endif %}
+            <li {% if Section == "Search" %}class="active"{% endif %}><a href="{% url "Hashcat:search" %}">Search</a></li>
             {% if Section == "Files" %}
                <li class="active"><a href="{% url "Hashcat:files" %}">Files</a></li>
             {% else %}
@@ -100,6 +103,9 @@
         </div>
 
         <div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
+        {% else %}
+        <div class="col-md-12 main">
+        {% endif %}
 
           {% if error_message %}
           </br>

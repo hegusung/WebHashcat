@@ -19,25 +19,16 @@ from operator import itemgetter
 from django.db.utils import ProgrammingError
 from django.contrib import messages
 from django.db import transaction
+from django.db import connection
 from django.db.utils import OperationalError
 
 from Utils.models import Lock
-from Hashcat.models import Session, Hashfile, Cracked
+from Hashcat.models import Session, Hashfile, Hash
 from Utils.hashcatAPI import HashcatAPI
+from Utils.utils import del_hashfile_locks
 
 class Hashcat(object):
     _hash_types = {}
-
-    """
-    @classmethod
-    def init_locks(self):
-        # Create a lock for each hashfile
-        try:
-            for hashfile in Hashfile.objects.all():
-                self.hashfile_locks[hashfile.id] = threading.Lock()
-        except ProgrammingError:
-            pass
-    """
 
     @classmethod
     def get_binary(self):
@@ -109,146 +100,274 @@ class Hashcat(object):
             potfile = self.get_potfile()
 
         with transaction.atomic():
-            # Lock: lock all the potfiles, this way only one instance of hashcat will be running at a time, the --left option eats a lot of RAM...
-            potfile_locks = list(Lock.objects.select_for_update().filter(lock_ressource="potfile"))
-            # Lock: prevent hashes file from being processed
-            hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
-            # Lock: prevent cracked file from being processed
-            crackedfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="crackedfile")[0]
-
-            hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
-            crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", hashfile.crackedfile)
-
-            # trick to allow multiple instances of hashcat
-            session_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
-
-            # Get cracked hashes 
-            cmd_line = [self.get_binary(), '--show', '-m', str(hashfile.hash_type), hashfile_path, '-o', crackedfile_path, '--session', session_name]
-            cmd_line += ['--outfile-format', '3']
-            if hashfile.username_included:
-                cmd_line += ['--username']
-            if potfile:
-                cmd_line += ['--potfile-path', potfile]
-            print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
-            p = subprocess.Popen(cmd_line, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-            p.wait()
-
-            # Remove cracked hashes from list
-            f = tempfile.NamedTemporaryFile(delete=False)
-            f.close()
-            cmd_line = [self.get_binary(), '--left', '-m', str(hashfile.hash_type), hashfile_path, '-o', f.name, '--session', session_name]
-            cmd_line += ['--outfile-format', '1']
-            if hashfile.username_included:
-                cmd_line += ['--username']
-            if potfile:
-                cmd_line += ['--potfile-path', potfile]
-            print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
-            p = subprocess.Popen(cmd_line, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-            p.wait()
-
-            # hashcat over, remove lock on potfile and hashfile
-            del hashfile_lock
-            del potfile_locks
-
-            copyfile(f.name, hashfile_path)
-            os.remove(f.name)
-
-            if os.path.exists(crackedfile_path):
+            locked = False
+            while not locked:
                 try:
-                    batch_create_list = []
-                    for index, line in enumerate(open(crackedfile_path, encoding='utf-8')):
-                        if index < hashfile.cracked_count:
-                            continue
+                    # Lock: lock all the potfiles, this way only one instance of hashcat will be running at a time, the --left option eats a lot of RAM...
+                    potfile_locks = list(Lock.objects.select_for_update().filter(lock_ressource="potfile"))
+                    # Lock: prevent hashes file from being processed
+                    hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
 
+                    locked = True
+                except OperationalError as e:
+                    continue
+
+        hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
+
+        # trick to allow multiple instances of hashcat
+        session_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
+
+        cracked_file = tempfile.NamedTemporaryFile(delete=False)
+
+        # is there a way to combine --show and --remove in hashcat ?
+
+        # Get cracked hashes
+        cmd_line = [self.get_binary(), '--show', '-m', str(hashfile.hash_type), hashfile_path, '-o', cracked_file.name, '--session', session_name]
+        cmd_line += ['--outfile-format', '3']
+        if potfile:
+            cmd_line += ['--potfile-path', potfile]
+        print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
+        p = subprocess.Popen(cmd_line, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        p.wait()
+
+        # Remove cracked hashes from list
+        f = tempfile.NamedTemporaryFile(delete=False)
+        f.close()
+        cmd_line = [self.get_binary(), '--left', '-m', str(hashfile.hash_type), hashfile_path, '-o', f.name, '--session', session_name]
+        cmd_line += ['--outfile-format', '1']
+        if potfile:
+            cmd_line += ['--potfile-path', potfile]
+        print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
+        p = subprocess.Popen(cmd_line, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        p.wait()
+
+        copyfile(f.name, hashfile_path)
+        os.remove(f.name)
+
+        # hashcat over, remove lock on potfile and hashfile
+        del potfile_locks
+        del hashfile_lock
+
+        if os.path.exists(cracked_file.name):
+
+            start = time.perf_counter()
+
+            cursor = connection.cursor()
+            tmp_table_name = "tmp_table_%s" % ''.join(random.choice(string.ascii_lowercase+string.digits) for i in range(10))
+            try:
+                # create temporary table
+                cursor.execute("BEGIN;")
+                cursor.execute("CREATE TEMPORARY TABLE " + tmp_table_name + " (hash char(190) PRIMARY KEY, password varchar(190) NOT NULL, pass_len INTEGER, pass_charset varchar(190), pass_mask varchar(190));")
+                cursor.execute("SET unique_checks=0;")
+
+                bulk_insert_list = []
+                nb_insert = 0
+                for index, line in enumerate(open(cracked_file.name, encoding='utf-8')):
+                    line = line.strip()
+                    password = line.split(":")[-1]
+                    password_hash = ":".join(line.split(":")[0:-1])
+
+                    pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
+
+                    bulk_insert_list += [password_hash, password, pass_len, pass_charset, pass_mask]
+                    nb_insert += 1
+
+                    if nb_insert >= 1000:
+                        cursor.execute("INSERT INTO " + tmp_table_name + " VALUES " + ", ".join(["(%s, %s, %s, %s, %s)"]*nb_insert) + ";", bulk_insert_list)
+                        bulk_insert_list = []
+                        nb_insert = 0
+
+                    # insert into table every 100K rows will prevent MySQL from raising "The number of locks exceeds the lock table size"
+                    if index % 100000 == 0:
+                        print(index)
+                        cursor.execute("UPDATE " + tmp_table_name + " b JOIN Hashcat_hash a ON a.hash = b.hash AND a.hash_type=%s SET a.password = b.password, a.password_len = b.pass_len, a.password_charset = b.pass_charset, a.password_mask = b.pass_mask;", [hashfile.hash_type])
+                        cursor.execute("DELETE FROM " + tmp_table_name + ";")
+                        cursor.execute("COMMIT;")
+
+                if len(bulk_insert_list) != 0:
+                    cursor.execute("INSERT INTO " + tmp_table_name + " VALUES " + ", ".join(["(%s, %s, %s, %s, %s)"]*nb_insert) + ";", bulk_insert_list)
+
+                cursor.execute("UPDATE " + tmp_table_name + " b JOIN Hashcat_hash a ON a.hash = b.hash AND a.hash_type=%s SET a.password = b.password, a.password_len = b.pass_len, a.password_charset = b.pass_charset, a.password_mask = b.pass_mask;", [hashfile.hash_type])
+                cursor.execute("COMMIT;")
+            except Exception as e:
+                traceback.print_exc()
+            finally:
+                cursor.execute("SET unique_checks=1;")
+                cursor.execute("DROP TABLE %s;" % tmp_table_name)
+                cursor.execute("COMMIT;")
+                cursor.close()
+
+                hashfile.cracked_count = Hash.objects.filter(hashfile_id=hashfile.id, password__isnull=False).count()
+                hashfile.save()
+
+            end = time.perf_counter()
+            print("Update password time: %fs" % (end-start,))
+
+            os.remove(cracked_file.name)
+
+    # executed only when file is uploaded
+    @classmethod
+    def insert_hashes(self, hashfile):
+
+        with transaction.atomic():
+            locked = False
+            while not locked:
+                try:
+                    # Lock: prevent cracked file from being processed
+                    hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
+
+                    locked = True
+                except OperationalError as e:
+                    continue
+
+        hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
+        if os.path.exists(hashfile_path):
+
+
+            try:
+                # 1 - import hashfile to database
+                print("importing hashfile to database")
+
+                start = time.perf_counter()
+
+                batch_create_list = []
+                hash_count = 0
+                for index, line in enumerate(open(hashfile_path, encoding='utf-8')):
+                    try:
                         line = line.strip()
-                        password = line.split(":")[-1]
                         if hashfile.username_included:
                             username = line.split(":")[0]
-                            password_hash = ":".join(line.split(":")[1:-1])
+                            password_hash = ":".join(line.split(":")[1:])
                         else:
                             username = None
-                            password_hash = ":".join(line.split(":")[0:-1])
+                            password_hash = line
+                    except IndexError:
+                        continue
 
-                        pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
+                    h = Hash(
+                            hashfile=hashfile,
+                            hash_type=hashfile.hash_type,
+                            username=username,
+                            hash=password_hash,
+                            password=None,
+                            password_len=None,
+                            password_charset=None,
+                            password_mask=None,
+                    )
+                    batch_create_list.append(h)
 
-                        cracked = Cracked(
-                                hashfile=hashfile,
-                                username=username,
-                                password=password,
-                                hash=password_hash,
-                                password_len=pass_len,
-                                password_charset=pass_charset,
-                                password_mask=pass_mask,
-                        )
-                        batch_create_list.append(cracked)
+                    if len(batch_create_list) >= 100000:
+                        print(index)
+                        hashfile.line_count += len(batch_create_list)
+                        while len(batch_create_list) != 0:
+                            Hash.objects.bulk_create(batch_create_list[:1000])
+                            batch_create_list = batch_create_list[1000:]
+                        hashfile.save()
 
-                        if len(batch_create_list) >= 1000:
-                            Cracked.objects.bulk_create(batch_create_list)
-                            hashfile.cracked_count += len(batch_create_list)
-                            hashfile.save()
-                            batch_create_list = []
-                    Cracked.objects.bulk_create(batch_create_list)
-                    hashfile.cracked_count += len(batch_create_list)
-                    hashfile.save()
+                hashfile.line_count += len(batch_create_list)
+                while len(batch_create_list) != 0:
+                    Hash.objects.bulk_create(batch_create_list[:1000])
+                    batch_create_list = batch_create_list[1000:]
+                hashfile.save()
 
-                except Exception as e:
-                    traceback.print_exc()
+                end = time.perf_counter()
+                print("Inserted hashes in : %fs" % (end-start,))
 
-            # Crackedfile processing if over, remove lock
-            del crackedfile_lock
+                # 2 - if username in hashfile, delete file and create one with only the hashes, 
+                #     --username takes a lot of RAM with hashcat, this method is better when processing huge hashfiles
 
+                start = time.perf_counter()
+
+                if hashfile.username_included:
+                    os.remove(hashfile_path)
+
+                    tmpfile_name = ''.join([random.choice(string.ascii_lowercase) for i in range(16)])
+                    tmpfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "tmp", tmpfile_name)
+
+                    cursor = connection.cursor()
+                    cursor.execute("SELECT DISTINCT hash FROM Hashcat_hash WHERE hashfile_id=%s INTO OUTFILE %s", [hashfile.id, tmpfile_path])
+                    cursor.close()
+
+                    copyfile(tmpfile_path, hashfile_path)
+                    os.remove(tmpfile_path)
+
+                end = time.perf_counter()
+                print("Wrote hashfile on disk in : %fs" % (end-start,))
+
+            except Exception as e:
+                traceback.print_exc()
+        else:
+            print("Error: hashfile doesn't exists")
+
+        # Crackedfile processing if over, remove lock
+        del hashfile_lock
+
+    # executed only when file is uploaded
     @classmethod
-    def insert_plaintext(self, crackedfile):
+    def insert_plaintext(self, hashfile):
+
         with transaction.atomic():
-            # Lock: prevent cracked file from being processed
-            crackedfile_lock = Lock.objects.select_for_update().filter(hashfile_id=crackedfile.id, lock_ressource="crackedfile")[0]
-
-            crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", crackedfile.crackedfile)
-            if os.path.exists(crackedfile_path):
+            locked = False
+            while not locked:
                 try:
-                    batch_create_list = []
-                    for index, line in enumerate(open(crackedfile_path, encoding='utf-8')):
-                        if index < crackedfile.cracked_count:
-                            continue
+                    # Lock: prevent cracked file from being processed
+                    hashfile_lock = Lock.objects.select_for_update().filter(hashfile_id=hashfile.id, lock_ressource="hashfile")[0]
 
-                        line = line.strip()
-                        password = line.split(":")[-1]
-                        if crackedfile.username_included:
-                            username = line.split(":")[0]
-                            password_hash = ""
-                        else:
-                            username = None
-                            password_hash = ""
+                    locked = True
+                except OperationalError as e:
+                    continue
 
-                        pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
+        hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
+        if os.path.exists(hashfile_path):
+            try:
+                batch_create_list = []
+                for index, line in enumerate(open(hashfile_path, encoding='utf-8')):
+                    if index < hashfile.cracked_count:
+                        continue
 
-                        cracked = Cracked(
-                                hashfile=crackedfile,
-                                username=username,
-                                password=password,
-                                hash=password_hash,
-                                password_len=pass_len,
-                                password_charset=pass_charset,
-                                password_mask=pass_mask,
-                        )
-                        batch_create_list.append(cracked)
+                    line = line.strip()
+                    password = line.split(":")[-1]
+                    if hashfile.username_included:
+                        username = line.split(":")[0]
+                        password_hash = ""
+                    else:
+                        username = None
+                        password_hash = ""
 
-                        if len(batch_create_list) >= 1000:
-                            Cracked.objects.bulk_create(batch_create_list)
-                            crackedfile.cracked_count += len(batch_create_list)
-                            crackedfile.save()
-                            batch_create_list = []
-                    Cracked.objects.bulk_create(batch_create_list)
-                    crackedfile.cracked_count += len(batch_create_list)
-                    crackedfile.save()
+                    pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
 
-                except Exception as e:
-                    traceback.print_exc()
+                    h = Hash(
+                            hashfile=hashfile,
+                            hash_type=hashfile.hash_type,
+                            username=username,
+                            password=password,
+                            hash=password_hash,
+                            password_len=pass_len,
+                            password_charset=pass_charset,
+                            password_mask=pass_mask,
+                    )
+                    batch_create_list.append(h)
 
+                    if len(batch_create_list) >= 100000:
+                        hashfile.line_count += len(batch_create_list)
+                        hashfile.cracked_count += len(batch_create_list)
+                        while len(batch_create_list) != 0:
+                            Hash.objects.bulk_create(batch_create_list[:1000])
+                            batch_create_list = batch_create_list[1000:]
+                        hashfile.save()
 
+                hashfile.line_count += len(batch_create_list)
+                hashfile.cracked_count += len(batch_create_list)
+                while len(batch_create_list) != 0:
+                    Hash.objects.bulk_create(batch_create_list[:1000])
+                    batch_create_list = batch_create_list[1000:]
+                hashfile.save()
+
+            except Exception as e:
+                traceback.print_exc()
 
             # Crackedfile processing if over, remove lock
-            del crackedfile_lock
+            del hashfile_lock
 
     @classmethod
     def get_rules(self, detailed=True):
@@ -396,67 +515,84 @@ class Hashcat(object):
 
         self.backup_potfile()
 
-        updated_hash_type = self.update_potfile()
+        updated_hashfile_ids = self.update_potfile()
 
-        # now the potfile has been updated, update the cracked files
-        for hashfile in Hashfile.objects.all():
-            if hashfile.hash_type in updated_hash_type:
-                try:
-                    self.compare_potfile(hashfile)
-                except OperationalError:
-                    # Probably already being updated, no need to process it again
-                    pass
+        for hashfile_id in updated_hashfile_ids:
+            hashfile = Hashfile.objects.get(id=hashfile_id)
+            try:
+                self.compare_potfile(hashfile)
+            except OperationalError:
+                # Probably already being updated, no need to process it again
+                pass
 
     @classmethod
     def update_potfile(self):
 
-        updated_hash_type = []
+        updated_hashfile_ids = []
 
         with transaction.atomic():
-            potfile_locks = list(Lock.objects.select_for_update().filter(lock_ressource="potfile"))
+            try:
+                # Lock: prevent the potfile from being modified
+                potfile_locks = list(Lock.objects.select_for_update().filter(lock_ressource="potfile"))
 
-            print("Updating potfile")
+                # update the potfile
+                for session in Session.objects.all():
+                    try:
+                        node = session.node
 
-            # update the potfile
-            for session in Session.objects.all():
+                        hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
+
+                        remaining = True
+                        while(remaining):
+                            potfile_data = hashcat_api.get_potfile(session.name, session.potfile_line_retrieved)
+
+                            if potfile_data["response"] == "ok" and potfile_data["line_count"] > 0:
+                                f = open(self.get_potfile(), "a", encoding='utf-8')
+                                f.write(potfile_data["potfile_data"])
+                                f.close()
+
+                                session.potfile_line_retrieved += potfile_data["line_count"]
+                                session.save()
+
+                                remaining = potfile_data["remaining_data"]
+
+                                updated_hashfile_ids.append(session.hashfile.id)
+                            else:
+                                remaining = False
+
+                    except ConnectionRefusedError:
+                        pass
+
+                del potfile_locks
+            except OperationalError as e:
+                # potfile is locked, no need to be concerned about it, this function is executed regularly
+                print("Error: potfile locked")
+
+        return list(set(updated_hashfile_ids))
+
+    @classmethod
+    def optimize_potfile(self):
+
+        self.backup_potfile()
+
+        optimized = False
+        while not optimized:
+            with transaction.atomic():
                 try:
-                    node = session.node
-
-                    hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
-
                     # Lock: prevent the potfile from being modified
+                    potfile_locks = list(Lock.objects.select_for_update().filter(lock_ressource="potfile"))
 
+                    # Probably quicker than a python equivalent code
+                    tmp_potfile = "/tmp/webhashcat_potfile"
+                    os.system("sort %s | uniq > %s; mv %s %s" % (Hashcat.get_potfile(), tmp_potfile, tmp_potfile, Hashcat.get_potfile()))
 
-                    remaining = True
-                    while(remaining):
-                        potfile_data = hashcat_api.get_potfile(session.name, session.potfile_line_retrieved)
+                    del potfile_locks
 
-                        if potfile_data["response"] == "ok" and potfile_data["line_count"] > 0:
-                            updated_hash_type.append(session.hashfile.hash_type)
+                    optimized = True
 
-                            f = open(self.get_potfile(), "a", encoding='utf-8')
-                            f.write(potfile_data["potfile_data"])
-                            f.close()
-
-                            session.potfile_line_retrieved += potfile_data["line_count"]
-                            session.save()
-
-                            remaining = potfile_data["remaining_data"]
-
-                            # Probably quicker than a python equivalent code
-                            tmp_potfile = "/tmp/webhashcat_potfile"
-                            os.system("sort %s | uniq > %s; mv %s %s" % (Hashcat.get_potfile(), tmp_potfile, tmp_potfile, Hashcat.get_potfile()))
-                        else:
-                            remaining = False
-
-                except ConnectionRefusedError:
+                except OperationalError as e:
                     pass
 
-            print("Done updating potfile")
-
-            del potfile_locks
-
-        return updated_hash_type
 
     @classmethod
     def backup_potfile(self):
@@ -478,6 +614,40 @@ class Hashcat(object):
         elif potfile_line_count < potfile_backup_line_count:
             # It can happen when the RAW is full, hashcat fails and the potfile might get corrupted
             print("ERROR: potfile corrupted !!!!")
+
+    @classmethod
+    def remove_hashfile(self, hashfile):
+        # Check if there is a running session
+        for session in Session.objects.filter(hashfile_id=hashfile.id):
+            node = session.node
+
+            try:
+                hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
+                hashcat_api.action(session.name, "remove")
+            except Exception as e:
+                traceback.print_exc()
+
+        hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
+
+        # remove from disk
+        try:
+            os.remove(hashfile_path)
+        except Exception as e:
+            pass
+
+        del_hashfile_locks(hashfile)
+
+        start = time.perf_counter()
+        # deletion is faster using raw SQL queries
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM Hashcat_session WHERE hashfile_id = %s", [hashfile.id])
+        cursor.execute("DELETE FROM Hashcat_hash WHERE hashfile_id = %s", [hashfile.id])
+        cursor.close()
+        hashfile.delete()
+        end = time.perf_counter()
+        print(">>> Hashfile %s deleted from database in %fs" % (hashfile.name, end-start))
+
+
 
 # This function is taken from https://github.com/iphelix/pack
 

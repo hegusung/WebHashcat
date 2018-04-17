@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+   <div id="messages" style="margin-bottom: 15px;">
+   </div>
+
+         <div class="row" style="display: flex;">
+
+            <div class="col-md-5">
+               <div class="panel panel-primary">
+                  <div class="panel-heading">
+                     <h2 class="panel-title">General statistics</h2>
+                  </div>
+                  <div class="panel-body" >
+                     <table id="stat_table" class="table table-striped" style="width:100%;">
+                        <thead style="display:none;">
+                           <td></td>
+                           <td></td>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+            </div>
+
+            <div class="col-md-3">
+               <div class="panel panel-primary">
+                  <div class="panel-heading">
+                     <h2 class="panel-title">Cracked ratio</h2>
+                  </div>
+                  <div class="panel-body" style="margin: 2px; padding: 2px;">
+                           <div id="cracked_graph" style="margin: 0px; padding: 0px;"></div>
+                  </div>
+               </div>
+            </div>
+
+
+            <div class="col-md-4">
+               <div class="panel panel-primary">
+                  <div class="panel-heading">
+                     <h2 class="panel-title">Nodes</h2>
+                  </div>
+                  <div class="panel-body">
+                     <table id="node_table" class="table table-striped table-condensed">
+                        <thead>
+                        <tr>
+                           <td><b>Name</b></td>
+                           <td><b>Status</b></td>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+            </div>
+
+         </div>
+
+      <div class="row">
+
+         <div class="panel panel-success">
+            <div class="panel-heading">
+               <h2 class="panel-title">Running sessions</h2>
+            </div>
+            <div class="panel-body">
+
+               {% load math %}
+
+               <table id="running_session_table" class="table">
+                  <thead>
+                  <tr>
+                     <td><b>Hashfile</b></td>
+                     <td><b>Node</b></td>
+                     <td><b>Type</b></td>
+                     <td><b>Rule/Mask</b></td>
+                     <td><b>Wordlist</b></td>
+                     <td><b>Remaining time</b></td>
+                     <td><b>Progress</b></td>
+                     <td><b>Speed</b></td>
+                  </tr>
+                  </thead>
+               </table>
+            </div>
+         </div>
+
+         <div class="panel panel-danger">
+            <div class="panel-heading">
+               <h2 class="panel-title">Failed sessions</h2>
+            </div>
+            <div class="panel-body">
+
+               {% load math %}
+
+               <table id="error_session_table" class="table">
+                  <thead>
+                  <tr>
+                     <td><b>Hashfile</b></td>
+                     <td><b>Node</b></td>
+                     <td><b>Type</b></td>
+                     <td><b>Rule/Mask</b></td>
+                     <td><b>Wordlist</b></td>
+                     <td><b>Status</b></td>
+                     <td><b>Reason</b></td>
+                  </tr>
+                  </thead>
+               </table>
+            </div>
+         </div>
+
+      </div>
+
+   <script type="text/javascript">
+      var cracked_chart = new Highcharts.chart('cracked_graph', {
+	  chart: {
+	      height: '50%',
+
+	      plotBackgroundColor: null,
+	      plotBorderWidth: 0,
+	      plotShadow: false,
+
+              margin: [0, 0, 0, 0],
+              spacingTop: 0,
+              spacingBottom: 0,
+              spacingLeft: 0,
+              spacingRight: 0
+	  },
+	  title: {
+	      text: '',
+	  },
+	  tooltip: {
+	      pointFormat: '{series.name}: <b>{point.percentage:.1f}%</b>'
+	  },
+	  plotOptions: {
+	      pie: {
+                 size: '175%',
+		  dataLabels: {
+		      enabled: true,
+		      distance: -50,
+		      style: {
+			  fontWeight: 'bold',
+			  color: 'white'
+		      }
+		  },
+		  startAngle: -90,
+		  endAngle: 90,
+		  center: ['50%', '95%'],
+                  colors: [
+                         '#50B432', 
+                         '#ED321B', 
+                  ],
+	      }
+	  },
+          credits: {
+              enabled: false
+          },
+	  exporting: {
+	      enabled: false
+	  },
+	  series: [{
+	      type: 'pie',
+	      name: 'Browser share',
+	      innerSize: '50%',
+              showInLegend: false,
+	      data: [],
+	      //	  ['Cracked',   80],
+	      //          ['Uncracked', 20],
+	      //]
+	  }]
+      });
+      cracked_chart.showLoading();
+
+      function update_cracked_chart() {
+         cracked_chart.series[0].setData(json_data);
+         cracked_chart.hideLoading();
+      }
+
+      var json_data = [];
+
+      function refresh_cracked_chart() {
+         $.getJSON('{% url "API:api_cracked_ratio" %}', function (data) {
+            json_data = data; 
+
+            update_cracked_chart();
+         });
+      }
+
+
+      function autoRefresh()
+      {
+         refresh_cracked_chart();
+      }
+      setInterval(autoRefresh, 30000); // this will reload page after every 30 seconds; Method II
+
+      refresh_cracked_chart();
+    </script>
+
+    <script type="text/javascript">
+        $(document).ready( function () {
+            // datatable
+            var table = $('#stat_table').DataTable({
+               "processing": false,
+               "serverSide": true,
+               "searching": false,
+               "paging": false,
+               "ordering": false,
+               "info": false,
+               "pageLength": 100,
+               "columnDefs": [
+                   { "width": "40%", "targets": 0},
+               ],
+               "ajax": {
+                  "url": "{% url 'API:api_statistics' %}",
+               },
+            });
+ 
+            function autoRefresh()
+            {
+               //window.location.reload();
+               table.ajax.reload();
+            }
+            setInterval(autoRefresh, 30000); // this will reload page after every 30 seconds; Method II
+        });
+
+
+    </script>
+
+
+
+    <script type="text/javascript">
+        $(document).ready( function () {
+            // datatable
+            var table = $('#node_table').DataTable({
+               "processing": false,
+               "serverSide": true,
+               "searching": false,
+               "paging": false,
+               "ordering": false,
+               "info": false,
+               "pageLength": 100,
+               "columnDefs": [
+                   { "width": "50%", "targets": 0},
+               ],
+               "columns": [
+                  { "data": 0 },
+                  { "data": 2 },
+               ],
+               "ajax": {
+                  "url": "{% url 'API:api_node_status' %}",
+               },
+            });
+ 
+            function autoRefresh()
+            {
+               //window.location.reload();
+               table.ajax.reload();
+            }
+            setInterval(autoRefresh, 30000); // this will reload page after every 30 seconds; Method II
+        });
+
+
+    </script>
+
+    <script type="text/javascript">
+        $(document).ready( function () {
+            // datatable
+            var table = $('#running_session_table').DataTable({
+               "processing": false,
+               "serverSide": true,
+               "searching": false,
+               "paging": false,
+               "ordering": false,
+               "info": false,
+               "pageLength": 100,
+               "columnDefs": [
+                  { "data": "hashfile", "width": "10%", "targets": 0},
+                  { "data": "node", "width": "10%", "targets": 1},
+                  { "data": "type", "width": "5%", "targets": 2},
+                  { "data": "rule_mask", "width": "12%", "targets": 3},
+                  { "data": "wordlist", "width": "12%", "targets": 4},
+                  { "data": "remaining", "width": "30%", "targets": 5},
+                  { "data": "progress", "width": "5%", "targets": 6},
+                  { "data": "speed", "width": "15%", "targets": 7},
+               ],
+               "ajax": {
+                  "url": "{% url 'API:api_running_sessions' %}",
+               },
+            });
+ 
+            function autoRefresh()
+            {
+               //window.location.reload();
+               table.ajax.reload();
+            }
+            setInterval(autoRefresh, 30000); // this will reload page after every 30 seconds; Method II
+        });
+
+
+    </script>
+
+    <script type="text/javascript">
+        $(document).ready( function () {
+            // datatable
+            var table = $('#error_session_table').DataTable({
+               "processing": false,
+               "serverSide": true,
+               "searching": false,
+               "paging": false,
+               "ordering": false,
+               "info": false,
+               "pageLength": 100,
+               "columnDefs": [
+                  { "data": "hashfile", "width": "10%", "targets": 0},
+                  { "data": "node", "width": "10%", "targets": 1},
+                  { "data": "type", "width": "5%", "targets": 2},
+                  { "data": "rule_mask", "width": "12%", "targets": 3},
+                  { "data": "wordlist", "width": "12%", "targets": 4},
+                  { "data": "status", "width": "10%", "targets": 5},
+                  { "data": "reason", "targets": 6},
+               ],
+               "ajax": {
+                  "url": "{% url 'API:api_error_sessions' %}",
+               },
+            });
+ 
+            function autoRefresh()
+            {
+               //window.location.reload();
+               table.ajax.reload();
+            }
+            setInterval(autoRefresh, 30000); // this will reload page after every 30 seconds; Method II
+        });
+
+
+    </script>
+
+
+
+{% endblock %}

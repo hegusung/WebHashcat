@@ -180,6 +180,7 @@ class Hashcat(object):
             session_status="Not started",
             time_started=None,
             progress=0,
+            reason="",
         )
         self.sessions[session.name] = session
         session.setup()
@@ -214,6 +215,7 @@ class Hashcat(object):
         for session in Session.select():
             if session.session_status in ["Running", "Paused"]:
                 session.session_status = "Aborted"
+                session.reason = ""
                 session.save()
             self.sessions[session.name] = session
             session.setup()
@@ -313,6 +315,7 @@ class Session(Model):
     session_status = CharField()
     time_started = DateTimeField(null=True)
     progress = FloatField()
+    reason = TextField()
 
     class Meta:
         database = database
@@ -383,7 +386,7 @@ class Session(Model):
         self.time_started = datetime.utcnow()
         self.save()
 
-        self.session_process = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.STDOUT)
+        self.session_process = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
         self.update_session()
 
@@ -412,12 +415,21 @@ class Session(Model):
 
         return_code = self.session_process.wait()
         # The cracking ended, set the parameters accordingly
-        if return_code >= 0:
-            self.session_status = "Done"
-        elif return_code == -1:
+        if return_code in [255,254]:
             self.session_status = "Error"
-        elif return_code == -2:
+            if return_code == 254:
+                self.reason = "GPU-watchdog alarm"
+            else:
+                ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+                error_msg = self.session_process.stderr.read().decode()
+                error_msg = ansi_escape.sub('', error_msg).strip()
+                self.reason = error_msg
+        elif return_code in [2,3,4]:
             self.session_status = "Aborted"
+            self.reason = ""
+        else:
+            self.session_status = "Done"
+            self.reason = ""
         self.time_estimated = "N/A"
         self.speed = "N/A"
         self.save()
@@ -434,6 +446,7 @@ class Session(Model):
             "time_estimated": self.time_estimated,
             "speed": self.speed,
             "progress": self.progress,
+            "reason": self.reason,
         }
 
     """

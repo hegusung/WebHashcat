@@ -218,15 +218,13 @@ class Server:
     """
     def _createSession(self):
         try:
-            data = json.loads(request.data.decode())
+            data = json.loads(request.form.get('json'))
 
             random_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
             hash_file = os.path.join(self.hash_directory, data["name"]+"_"+random_name+".list")
 
-            print(hash_file)
-            f = open(hash_file, "w")
-            f.write(data["hashes"])
-            f.close()
+            file = request.files['file']
+            file.save(hash_file)
 
             Hashcat.create_session(
                 data["name"],

@@ -13,6 +13,8 @@ from django.shortcuts import redirect
 from django.template import loader
 from django.urls import reverse
 from django.http import HttpResponse
+from django.http import StreamingHttpResponse
+from django.http import FileResponse
 from django.contrib.auth.decorators import login_required
 from django.middleware.csrf import get_token
 from django.db.models import Q, Count, BinaryField
@@ -26,12 +28,22 @@ from django.shortcuts import get_object_or_404
 from operator import itemgetter
 
 from Nodes.models import Node
-from .models import Hashfile, Session, Cracked
+from .models import Hashfile, Session, Hash, Search
 
 from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
 from Utils.utils import init_hashfile_locks
+from Utils.utils import Echo
+from Utils.tasks import import_hashfile_task, run_search_task
 # Create your views here.
+
+@login_required
+def dashboard(request):
+    context = {}
+    context["Section"] = "Dashboard"
+
+    template = loader.get_template('Hashcat/dashboard.html')
+    return HttpResponse(template.render(context, request))
 
 @login_required
 def hashfiles(request):
@@ -45,14 +57,8 @@ def hashfiles(request):
             hashfile_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".hashfile"
             hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile_name)
 
-            crackedfile_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".crackedfile"
-            crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", crackedfile_name)
-
             hashes = request.POST["hashes"]
-            if hash_type != -1: # if != plaintext
-                f = open(hashfile_path, 'w')
-            else:
-                f = open(crackedfile_path, 'w')
+            f = open(hashfile_path, 'w')
             if len(hashes) == 0 and "hashfile" in request.FILES:
                 for chunk in request.FILES['hashfile'].chunks():
                     f.write(chunk.decode('UTF-8', 'backslashreplace'))
@@ -62,35 +68,19 @@ def hashfiles(request):
 
             username_included = "username_included" in request.POST
 
-            if hash_type != -1: # if != plaintext
-                line_count = sum(1 for _ in open(hashfile_path, errors="backslashreplace"))
-            else:
-                line_count = sum(1 for _ in open(crackedfile_path, errors="backslashreplace"))
-
             hashfile = Hashfile(
                 name=request.POST['name'],
                 hashfile=hashfile_name,
-                crackedfile=crackedfile_name,
                 hash_type=hash_type,
-                line_count=line_count,
+                line_count=0,
                 cracked_count = 0,
                 username_included=username_included,
             )
             hashfile.save()
             init_hashfile_locks(hashfile)
 
-            # Update the new file with the potfile, this may take a while
-            updated = False
-            while not updated:
-                try:
-                    if hash_type != -1: # if != plaintext
-                        Hashcat.compare_potfile(hashfile)
-                    else:
-                        Hashcat.insert_plaintext(hashfile)
-                    updated = True
-                except OperationalError:
-                    # db locked, try again !!!
-                    pass
+            # Update the new file with the potfile, this may take a while, but it is processed in a background task
+            import_hashfile_task.delay(hashfile.id)
 
             if hash_type != -1: # if != plaintext
                 messages.success(request, "Hashfile successfully added")
@@ -104,6 +94,40 @@ def hashfiles(request):
     context["wordlist_list"] = sorted(Hashcat.get_wordlists(detailed=False), key=itemgetter('name'))
 
     template = loader.get_template('Hashcat/hashes.html')
+    return HttpResponse(template.render(context, request))
+
+@login_required
+def search(request):
+    context = {}
+    context["Section"] = "Search"
+
+    context["hashfile_list"] = Hashfile.objects.order_by('name')
+    if request.method == 'POST':
+        search_info = {}
+        if len(request.POST["search_pattern"]) != 0:
+            search_info["pattern"] = request.POST["search_pattern"]
+        if "all_hashfiles" in request.POST:
+            search_info["all_hashfiles"] = True
+        else:
+            search_info["hashfiles"] = request.POST.getlist("hashfile_search[]")
+        if "ignore_uncracked" in request.POST:
+            search_info["ignore_uncracked"] = True
+
+        search_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".csv"
+        output_file = os.path.join(os.path.dirname(__file__), "..", "Files", "Searches", search_filename)
+
+        search = Search(
+            name=request.POST['search_name'],
+            status="Starting",
+            output_lines=None,
+            output_file=output_file,
+            json_search_info=json.dumps(search_info),
+        )
+        search.save()
+
+        run_search_task.delay(search.id)
+
+    template = loader.get_template('Hashcat/search.html')
     return HttpResponse(template.render(context, request))
 
 @login_required
@@ -230,22 +254,28 @@ def hashfile(request, hashfile_id, error_msg=''):
 def export_cracked(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
-    crackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Crackedfiles", hashfile.crackedfile)
-    cracked_hashes = open(crackedfile_path).read()
+    cracked_hashes = Hash.objects.filter(hashfile_id=hashfile.id, password__isnull=False)
 
-    response = HttpResponse(cracked_hashes, content_type='application/force-download') # mimetype is replaced by content_type for django 1.7
-    response['Content-Disposition'] = 'attachment; filename=%s_cracked.txt' % hashfile.name.replace(" ", "_")
+    if hashfile.username_included:
+        response = StreamingHttpResponse(("%s:%s\n" % (item.username, item.password) for item in cracked_hashes), content_type="text/txt")
+    else:
+        response = StreamingHttpResponse(("%s:%s\n" % (item.hash, item.password) for item in cracked_hashes), content_type="text/txt")
+
+    response['Content-Disposition'] = 'attachment; filename="cracked.txt"'
     return response
 
 @login_required
 def export_uncracked(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
-    uncrackedfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
-    uncracked_hashes = open(uncrackedfile_path).read()
+    uncracked_hashes = Hash.objects.filter(hashfile_id=hashfile.id, password__isnull=True)
 
-    response = HttpResponse(uncracked_hashes, content_type='application/force-download') # mimetype is replaced by content_type for django 1.7
-    response['Content-Disposition'] = 'attachment; filename=%s_uncracked.txt' % hashfile.name.replace(" ", "_")
+    if hashfile.username_included:
+        response = StreamingHttpResponse(("%s:%s\n" % (item.username, item.hash) for item in uncracked_hashes), content_type="text/txt")
+    else:
+        response = StreamingHttpResponse(("%s\n" % (item.hash,) for item in uncracked_hashes), content_type="text/txt")
+
+    response['Content-Disposition'] = 'attachment; filename="uncracked.txt"'
     return response
 
 @login_required
@@ -253,20 +283,23 @@ def csv_masks(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
     # didn't found the correct way in pure django...
-    res = Cracked.objects.raw("SELECT 1 AS id, MAX(password_mask) AS password_mask, COUNT(*) AS count FROM Hashcat_cracked USE INDEX (hashfileid_id_index) WHERE hashfile_id=%s GROUP BY password_mask ORDER BY count DESC", [hashfile.id])
+    rows = Hash.objects.raw("SELECT 1 AS id, MAX(password_mask) AS password_mask, COUNT(*) AS count FROM Hashcat_hash WHERE hashfile_id=%s AND password_mask IS NOT NULL GROUP BY password_mask ORDER BY count DESC", [hashfile.id])
 
-    fp = tempfile.SpooledTemporaryFile(mode='w')
-    csvfile = csv.writer(fp, quotechar='"', quoting=csv.QUOTE_ALL)
-    for item in res:
-        csvfile.writerow([item.count, item.password_mask])
-    fp.seek(0)   # rewind the file handle
+    pseudo_buffer = Echo()
+    writer = csv.writer(pseudo_buffer)
 
-    csvfile_data = fp.read()
+    response = StreamingHttpResponse((writer.writerow([item.password_mask, item.count]) for item in rows), content_type="text/csv")
 
-    for query in connection.queries[-1:]:
-        print(query["sql"])
-        print(query["time"])
-
-    response = HttpResponse(csvfile_data, content_type='application/force-download') # mimetype is replaced by content_type for django 1.7
-    response['Content-Disposition'] = 'attachment; filename=%s_masks.csv' % hashfile.name
+    response['Content-Disposition'] = 'attachment; filename="masks.csv"'
     return response
+
+@login_required
+def export_search(request, search_id):
+    search = get_object_or_404(Search, id=search_id)
+
+    response = FileResponse(open(search.output_file, 'rb'), content_type="text/csv")
+
+    response['Content-Disposition'] = 'attachment; filename="search.csv"'
+    return response
+
+
