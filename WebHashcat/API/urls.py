@@ -18,5 +18,7 @@ urlpatterns = [
         url(r'^hashfile_top_password_len/(.*)/(.*)$', views.api_hashfile_top_password_len, name='api_hashfile_top_password_len'),
         url(r'^hashfile_top_password_charset/(.*)/(.*)$', views.api_hashfile_top_password_charset, name='api_hashfile_top_password_charset'),
         url(r'^get_messages$', views.api_get_messages, name='api_get_messages'),
+        url(r'^search_list$', views.api_search_list, name='api_search_list'),
+        url(r'^search_action$', views.api_search_action, name='api_search_action'),
 ]
 

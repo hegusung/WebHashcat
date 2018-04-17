@@ -14,6 +14,7 @@ from django.template import loader
 from django.urls import reverse
 from django.http import HttpResponse
 from django.http import StreamingHttpResponse
+from django.http import FileResponse
 from django.contrib.auth.decorators import login_required
 from django.middleware.csrf import get_token
 from django.db.models import Q, Count, BinaryField
@@ -27,13 +28,13 @@ from django.shortcuts import get_object_or_404
 from operator import itemgetter
 
 from Nodes.models import Node
-from .models import Hashfile, Session, Hash
+from .models import Hashfile, Session, Hash, Search
 
 from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
 from Utils.utils import init_hashfile_locks
 from Utils.utils import Echo
-from Utils.tasks import import_hashfile_task
+from Utils.tasks import import_hashfile_task, run_search_task
 # Create your views here.
 
 @login_required
@@ -93,6 +94,40 @@ def hashfiles(request):
     context["wordlist_list"] = sorted(Hashcat.get_wordlists(detailed=False), key=itemgetter('name'))
 
     template = loader.get_template('Hashcat/hashes.html')
+    return HttpResponse(template.render(context, request))
+
+@login_required
+def search(request):
+    context = {}
+    context["Section"] = "Search"
+
+    context["hashfile_list"] = Hashfile.objects.order_by('name')
+    if request.method == 'POST':
+        search_info = {}
+        if len(request.POST["search_pattern"]) != 0:
+            search_info["pattern"] = request.POST["search_pattern"]
+        if "all_hashfiles" in request.POST:
+            search_info["all_hashfiles"] = True
+        else:
+            search_info["hashfiles"] = request.POST.getlist("hashfile_search[]")
+        if "ignore_uncracked" in request.POST:
+            search_info["ignore_uncracked"] = True
+
+        search_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".csv"
+        output_file = os.path.join(os.path.dirname(__file__), "..", "Files", "Searches", search_filename)
+
+        search = Search(
+            name=request.POST['search_name'],
+            status="Starting",
+            output_lines=None,
+            output_file=output_file,
+            json_search_info=json.dumps(search_info),
+        )
+        search.save()
+
+        run_search_task.delay(search.id)
+
+    template = loader.get_template('Hashcat/search.html')
     return HttpResponse(template.render(context, request))
 
 @login_required
@@ -257,3 +292,14 @@ def csv_masks(request, hashfile_id):
 
     response['Content-Disposition'] = 'attachment; filename="masks.csv"'
     return response
+
+@login_required
+def export_search(request, search_id):
+    search = get_object_or_404(Search, id=search_id)
+
+    response = FileResponse(open(search.output_file, 'rb'), content_type="text/csv")
+
+    response['Content-Disposition'] = 'attachment; filename="search.csv"'
+    return response
+
+

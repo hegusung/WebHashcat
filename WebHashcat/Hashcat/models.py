@@ -35,3 +35,10 @@ class Hash(models.Model):
             models.Index(fields=['hash', 'hash_type'], name="hash_index"),
         ]
 
+class Search(models.Model):
+    name = models.CharField(max_length=100)
+    status = models.CharField(max_length=100)
+    output_lines = models.IntegerField(null=True)
+    output_file = models.TextField()
+    processing_time = models.IntegerField(null=True)
+    json_search_info = models.TextField()

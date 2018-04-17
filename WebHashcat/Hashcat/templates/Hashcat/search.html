@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+   <div id="messages" style="margin-bottom: 15px;">
+   </div>
+
+   <div class="row">
+      <div class="col-md-4">
+
+         <div class="panel panel-primary">
+            <div class="panel-heading">
+               <h2 class="panel-title">Search options</h2>
+            </div>
+            <div class="panel-body" >
+
+                     <form enctype="multipart/form-data" method="post">
+                     {% csrf_token %}
+
+                     <div class="form-group row">
+                        <label for="inputSearchName" class="col-sm-3 control-label">Search name</label>
+                        <div class="col-sm-9">
+                           <input class="form-control" id="inputSearchName" name="search_name" placeholder="">
+                        </div>
+                     </div>
+
+                     <div class="form-group row">
+                        <label for="inputUserPattern" class="col-sm-3 control-label">Pattern in username</label>
+                        <div class="col-sm-9">
+                           <input class="form-control" id="inputUserPattern" name="search_pattern" placeholder="Use semicolumn as a separator">
+                        </div>
+                     </div>
+                     <hr>
+
+                     <div class="form-group">
+                        <div class="">
+                           <div class="checkbox">
+                              <label>
+                                 <input type="checkbox" style="margin-right: 10px;" name="all_hashfiles" value="all_hashfiles">Search in all hashfiles
+                              </label>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div class="form-group row">
+                        <label for="inputHashfiles" class="col-sm-3 control-label">Hashfiles:</label>
+                        <div class="col-sm-9">
+                           <div id="CheckedListBox1" style="border-width:1px;border-style:Solid;height:300px;width:100%;overflow-y:scroll;padding:2px;">
+                              {% for hashfile in hashfile_list %}
+                              <input type="checkbox" style="margin-right: 5px;" name="hashfile_search[]" value="{{ hashfile.id }}" />{{ hashfile.name }}<br>
+                              {% endfor %}
+                           </div>
+                        </div>
+                     </div>
+                     <hr>
+
+                     <div class="form-group">
+                        <div class="">
+                           <div class="checkbox">
+                              <label>
+                                 <input type="checkbox" style="margin-right: 10px;" name="ignore_uncracked" value="ignore_uncracked">Ignore uncracked results
+                              </label>
+                           </div>
+                        </div>
+                     </div>
+                     <br>
+                     <button type="submit" class="btn btn-primary" >Search</button>
+                     </form>
+
+            </div>
+         </div>
+
+      </div>
+      <div class="col-md-8">
+      
+         <div class="panel panel-primary">
+            <div class="panel-heading">
+               <div style="float: right;">
+                  <button id="update_searches" class="btn btn-xs btn-success">Update</button>
+               </div>
+               <h2 class="panel-title">Searches</h2>
+            </div>
+            <div class="panel-body" >
+
+               <table id="search_table" class="table">
+                  <thead>
+                  <tr>
+                     <td><b>Name</b></td>
+                     <td><b>Status</b></td>
+                     <td><b>Lines</b></td>
+                     <td><b>Processing time</b></td>
+                     <td></td>
+                  </tr>
+                  </thead>
+               </table>
+
+            </div>
+         </div>
+
+      </div>
+
+   </div>
+
+      <script type="text/javascript">
+
+         // datatable
+         var search_table = $('#search_table').DataTable({
+            "processing": true,
+            "serverSide": true,
+            "pageLength" : 25,
+            "columnDefs": [
+                { "width": "30%", "targets": 0},
+                { "width": "10%", "targets": 1},
+                { "width": "20%", "targets": 2},
+                { "width": "20%", "targets": 3},
+                { "targets": 4, "orderable": false},
+            ],
+            "ajax": {
+               "url": "{% url 'API:api_search_list' %}",
+            },
+            "order": [[0, 'asc']]
+         });
+
+
+         function update_searches() {
+            search_table.ajax.reload();
+         }
+
+         document.getElementById("update_searches").addEventListener('click',update_searches);
+         setInterval(update_searches, 60000); // this will reload page after every 60 seconds;
+
+        function search_action(search_id, action){
+           if(action == "remove")
+           {
+              res = window.confirm("Are you sure?");
+
+              if(res == false)
+              {
+                 return
+              }
+           }
+
+           $.ajax({
+               'url' : '{% url "API:api_search_action" %}',
+               'type' : 'GET',
+               'data' : {
+                  'search_id' : search_id,
+                  'action' : action
+               },
+               'success' : function(data) {
+                  update_searches();
+               }
+           });
+        }
+
+
+
+      </script>
+
+
+{% endblock %}

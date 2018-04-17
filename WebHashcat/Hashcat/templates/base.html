@@ -77,13 +77,14 @@
         {% if Section != "Dashboard" %}
 
         <div class="col-sm-3 col-md-2 sidebar">
-          {% if Section == "Hashes" or Section == "Files" or Section == "Hashfile" %}
+          {% if Section == "Hashes" or Section == "Search" or Section == "Files" or Section == "Hashfile" %}
           <ul class="nav nav-sidebar">
             {% if Section == "Hashes" or Section == "Hashfile" %}
                <li class="active"><a href="{% url "Hashcat:hashfiles" %}">Hashfiles</a></li>
             {% else %}
                <li ><a href="{% url "Hashcat:hashfiles" %}">Hashfiles</a></li>
             {% endif %}
+            <li {% if Section == "Search" %}class="active"{% endif %}><a href="{% url "Hashcat:search" %}">Search</a></li>
             {% if Section == "Files" %}
                <li class="active"><a href="{% url "Hashcat:files" %}">Files</a></li>
             {% else %}

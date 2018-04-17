@@ -8,6 +8,7 @@ import tempfile
 import humanize
 import time
 import traceback
+import datetime
 from collections import OrderedDict
 
 from django.shortcuts import render
@@ -27,14 +28,15 @@ from django.shortcuts import get_object_or_404
 
 from operator import itemgetter
 
-from Hashcat.models import Hashfile, Session, Hash
+from Hashcat.models import Hashfile, Session, Hash, Search
 from Nodes.models import Node
 from Utils.models import Task
 
 from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
-from Utils.utils import del_hashfile_locks
+from Utils.utils import del_hashfile_locks, Echo
 from Utils.tasks import remove_hashfile_task
+from Utils.tasks import run_search_task
 # Create your views here.
 
 @login_required
@@ -554,3 +556,61 @@ def api_get_messages(request):
         message_list.append({"message": task.message})
 
     return HttpResponse(json.dumps({"result": "success", "messages": message_list}), content_type="application/json")
+
+@login_required
+def api_search_list(request):
+    if request.method == "POST":
+        params = request.POST
+    else:
+        params = request.GET
+
+    result = {
+        "draw": params["draw"],
+    }
+
+    sort_index = ["name", "status", "output_lines"][int(params["order[0][column]"])]
+    sort_index = "-" + sort_index if params["order[0][dir]"] == "desc" else sort_index
+    search_list = Search.objects.filter(name__contains=params["search[value]"]).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
+
+    data = []
+    for search in search_list:
+        buttons = ""
+        if os.path.exists(search.output_file):
+            buttons = "<a href='%s'><button title='Export search results' class='btn btn-info btn-xs' ><span class='glyphicon glyphicon-download-alt'></span></button></a>" % reverse('Hashcat:export_search', args=(search.id,))
+        if search.status in ["Done", "Aborted"]:
+            buttons += "<button title='Restart search' style='margin-left: 5px' type='button' class='btn btn-primary btn-xs' onClick='search_action(%d, \"%s\")'><span class='glyphicon glyphicon-refresh'></span></button>" % (search.id, "reload")
+            buttons += "<button title='Remove search' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='search_action(%d, \"%s\")'><span class='glyphicon glyphicon-remove'></span></button>" % (search.id, "remove")
+
+        buttons = "<div style='float: right'>%s</div>" % buttons
+
+        data.append([
+            search.name,
+            search.status,
+            humanize.intcomma(search.output_lines) if search.output_lines != None else "",
+            str(datetime.timedelta(seconds=search.processing_time)) if search.processing_time != None else "",
+            buttons,
+        ])
+
+    result["data"] = data
+    result["recordsTotal"] = Search.objects.all().count()
+    result["recordsFiltered"] = Search.objects.filter(name__contains=params["search[value]"]).count()
+
+    return HttpResponse(json.dumps(result), content_type="application/json")
+
+@login_required
+def api_search_action(request):
+    if request.method == "POST":
+        params = request.POST
+    else:
+        params = request.GET
+
+    search = get_object_or_404(Search, id=params["search_id"])
+
+    if params["action"] == "remove":
+        if os.path.exists(search.output_file):
+            os.remove(search.output_file)
+        search.delete()
+    elif params["action"] == "reload":
+        run_search_task.delay(search.id)
+
+    return HttpResponse(json.dumps({"result": "success"}), content_type="application/json")

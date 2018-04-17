@@ -8,6 +8,7 @@ WebHashcat/Files/Crackedfiles/*.crackedfile
 WebHashcat/Files/Maskfiles/*.hcmask
 WebHashcat/Files/Rulefiles/*.rule
 WebHashcat/Files/Wordlistfiles/*.wordlist
+WebHashcat/Files/Searches/**
 WebHashcat/celerybeat.pid
 WebHashcat/celerybeat-schedule
 HashcatNode/*.crt
