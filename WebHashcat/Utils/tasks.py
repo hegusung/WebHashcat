@@ -196,6 +196,18 @@ def update_potfile_task():
     Hashcat.update_hashfiles()
 
 @periodic_task(
+    run_every=(crontab(hour=2, minute=0)),
+    name="update_cracked_count",
+    ignore_result=False
+)
+@only_one(key="UpdateCrackedCount", timeout=6*60*60)
+def update_cracked_count():
+    for hashfile in Hashfile.objects.all():
+        if not hashfile.hash_type in [-1,]:
+            hashfile.cracked_count = Hash.objects.filter(hashfile_id=hashfile.id, password__isnull=False).count()
+            hashfile.save()
+
+@periodic_task(
     run_every=(crontab(hour=3, minute=0)),
     name="optimize_potfile",
     ignore_result=True
