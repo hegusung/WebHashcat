@@ -204,7 +204,7 @@ def api_error_sessions(request):
                     "rule_mask": rule_mask,
                     "wordlist": wordlist,
                     "status": session_info["status"],
-                    "reason": "TODO",
+                    "reason": session_info["reason"],
                 })
         except ConnectionRefusedError:
             pass
@@ -324,12 +324,16 @@ def api_hashfile_sessions(request):
                 rule_mask = session_info["mask"]
                 wordlist = ""
 
+            status = session_info["status"]
+            if status == "Error":
+                status += ' <a href="#" data-toggle="tooltip" data-placement="right" title="%s"><span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span></a>' % session_info["reason"]
+
             data.append({
                 "node": node.name,
                 "type": session_info["crack_type"],
                 "rule_mask": rule_mask,
                 "wordlist": wordlist,
-                "status": session_info["status"],
+                "status": status,
                 "remaining": session_info["time_estimated"],
                 "progress": "%s %%" % session_info["progress"],
                 "speed": session_info["speed"],
