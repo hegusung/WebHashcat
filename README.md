@@ -7,6 +7,7 @@ It hash the following features:
 * Cracked hashes are displayed almost as soon as they are cracked
 * Cracking session restore (for example after host reboot)
 * Upload plaintext files for analytics purposes
+* Search patterns through the entire database
 * Analytics
 
 Currently WebHashcat supports rule-based and mask-based attack mode
@@ -48,6 +49,12 @@ If you set the cron to 5 minutes, the central potfile will be updated every 5 mi
 Simply click on the hashfile to view the results, it can take few seconds on huge hashfiles. Note that you can also download the results on both the hashfile list and hashfile views.
 
 <p align="center"><img src="./screenshots/webhashcat_hashfile.png" alt="Hashfile details"></p>
+
+### Search for ŝpecific patterns in usernames
+
+Using this functionality you can easily search from client's email addresses in leaks uploaded in webhashcat. Simply provide a string you want to look for in the username and select in which hashfiles you want to look for it. Once the research in the database is done, you should be able to download the results. If you add a new hashfile afterwards, you can simply click on the 'reload' button and WebHashcat will search again in the whole database.
+
+<p align="center"><img src="./screenshots/webhashcat_searches.png" alt="Hashfile details"></p>
 
 ## Install
 
@@ -146,8 +153,8 @@ Supervisor is the deamon which is responsible of heavy background tasks such as 
 - humanize
 - requests
 - requests-toolbelt
-- schedule
 - celery
+- redis
 - supervisor
 
 ## Operating System improvements
