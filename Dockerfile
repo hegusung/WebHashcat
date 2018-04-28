@@ -8,7 +8,7 @@ LABEL org.label-schema.build-date=$BUILD_DATE \
       org.label-schema.name="WebHashcat" \
       org.label-schema.description="Hashcat web interface" \
       org.label-schema.vcs-ref=$VCS_REF \
-      org.label-schema.vcs-url="https://github.com/brianclemens/WebHashcat" \
+      org.label-schema.vcs-url="https://github.com/hegusung/WebHashcat" \
       org.label-schema.schema-version="1.0"
 
 ENV HASHCAT_COMMIT=f6cfcbb \
