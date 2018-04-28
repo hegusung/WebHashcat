@@ -1,0 +1,35 @@
+version: '3.3'
+
+services:
+  db:
+    command: mysqld --default-authentication-plugin=mysql_native_password
+    environment:
+      - MYSQL_DATABASE=webhashcat
+      - MYSQL_PASSWORD=password
+      - MYSQL_USER=webhashcat
+    image: mysql
+    networks:
+      - back
+    volumes:
+      - /var/webhashcat:/var/lib/mysql
+    restart: always
+
+  webhashcat:
+    build: ./
+    depends_on:
+      - db
+    environment:
+      - WHC_DB_HOST=db
+      - WHC_DB_NAME=webhashcat
+      - WHC_DB_PASSWORD=password
+      - WHC_DB_USER=webhashcat
+      - WHC_SECRET_KEY=supersecret
+    networks:
+      - back
+    ports:
+      - 80:8000
+    restart: always
+
+networks:
+  back:
+    driver: bridge
