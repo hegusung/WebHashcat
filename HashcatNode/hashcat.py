@@ -134,7 +134,7 @@ class Hashcat(object):
         Create a new session
     """
     @classmethod
-    def create_session(self, name, crack_type, hash_file, hash_mode_id, wordlist, rule, mask, username_included):
+    def create_session(self, name, crack_type, hash_file, hash_mode_id, wordlist, rule, mask, username_included, device_type):
 
         if name in self.sessions:
             raise Exception("This session name has already been used")
@@ -144,6 +144,9 @@ class Hashcat(object):
 
         if not crack_type in ["dictionary", "mask"]:
             raise Exception("Unsupported cracking type: %s" % crack_type)
+
+        if not device_type in [1, 2, 3]:
+            raise Exception("Unsupported device type: %d" % device_type)
 
         if crack_type == "dictionary":
             if rule != None and not rule in self.rules:
@@ -177,6 +180,7 @@ class Hashcat(object):
             rule_file=rule_path,
             mask_file=mask_path,
             username_included=username_included,
+            device_type=device_type,
             session_status="Not started",
             time_started=None,
             progress=0,
@@ -312,6 +316,7 @@ class Session(Model):
     wordlist_file = CharField(null=True)
     mask_file = CharField(null=True)
     username_included = BooleanField()
+    device_type = IntegerField()
     session_status = CharField()
     time_started = DateTimeField(null=True)
     progress = FloatField()
@@ -369,6 +374,8 @@ class Session(Model):
                 cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '3', '-m', str(self.hash_mode_id), self.hash_file, self.mask_file]
             if self.username_included:
                 cmd_line += ["--username"]
+            if self.device_type:
+                cmd_line += ["-D", str(self.device_type)]
             # workload profile
             cmd_line += ["--workload-profile", Hashcat.workload_profile]
             # set pot file
@@ -438,6 +445,7 @@ class Session(Model):
         return {
             "name": self.name,
             "crack_type": self.crack_type,
+            "device_type": self.device_type,
             "rule": self.rule_file.split("/")[-1][:-5] if self.rule_file else None,
             "mask": self.mask_file.split("/")[-1][:-7] if self.mask_file else None,
             "wordlist": self.wordlist_file.split("/")[-1][:-1*len(".wordlist")] if self.wordlist_file else None,

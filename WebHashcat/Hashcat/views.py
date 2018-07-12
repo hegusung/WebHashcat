@@ -168,13 +168,15 @@ def new_session(request):
         elif crack_type == "mask":
             mask = request.POST["mask"]
 
+        device_type = int(request.POST["device_type"])
+
         session_name = ("%s-%s" % (hashfile.name, ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)))).replace(" ", "_")
 
         hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
         if crack_type == "dictionary":
-            res = hashcat_api.create_dictionary_session(session_name, hashfile, rule, wordlist)
+            res = hashcat_api.create_dictionary_session(session_name, hashfile, rule, wordlist, device_type)
         elif crack_type == "mask":
-            res = hashcat_api.create_mask_session(session_name, hashfile, mask)
+            res = hashcat_api.create_mask_session(session_name, hashfile, mask, device_type)
 
         if res["response"] == "error":
             messages.error(request, res["message"])
@@ -186,6 +188,7 @@ def new_session(request):
                 name=session_name,
                 hashfile=hashfile,
                 node = node,
+                device_type=device_type,
                 potfile_line_retrieved=0,
         )
         session.save()
