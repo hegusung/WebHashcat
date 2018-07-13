@@ -134,7 +134,7 @@ class Hashcat(object):
         Create a new session
     """
     @classmethod
-    def create_session(self, name, crack_type, hash_file, hash_mode_id, wordlist, rule, mask, username_included, device_type):
+    def create_session(self, name, crack_type, hash_file, hash_mode_id, wordlist, rule, mask, username_included, device_type, end_timestamp):
 
         if name in self.sessions:
             raise Exception("This session name has already been used")
@@ -181,6 +181,7 @@ class Hashcat(object):
             mask_file=mask_path,
             username_included=username_included,
             device_type=device_type,
+            end_timestamp=end_timestamp,
             session_status="Not started",
             time_started=None,
             progress=0,
@@ -317,6 +318,7 @@ class Session(Model):
     mask_file = CharField(null=True)
     username_included = BooleanField()
     device_type = IntegerField()
+    end_timestamp = IntegerField(null=True)
     session_status = CharField()
     time_started = DateTimeField(null=True)
     progress = FloatField()
@@ -419,6 +421,18 @@ class Session(Model):
                 m = regex.match(line)
                 if m:
                     setattr(self, var, m.group(1))
+
+            # check timestamp
+            if self.end_timestamp:
+                current_timestamp = int(datetime.utcnow().timestamp())
+                print("%d > %d" % (current_timestamp, self.end_timestamp))
+
+                if current_timestamp > self.end_timestamp:
+                    print("END!")
+                    self.session_process.stdin.write(b'q')
+                    self.session_process.stdin.flush()
+                    break
+
 
         return_code = self.session_process.wait()
         # The cracking ended, set the parameters accordingly

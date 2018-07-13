@@ -16,7 +16,6 @@ class Session(models.Model):
     name = models.CharField(max_length=100)
     hashfile = models.ForeignKey(Hashfile, on_delete=models.CASCADE)
     node = models.ForeignKey(Node, on_delete=models.CASCADE)
-    device_type = models.IntegerField(default=2) #GPU
     potfile_line_retrieved = models.IntegerField()
 
 class Hash(models.Model):

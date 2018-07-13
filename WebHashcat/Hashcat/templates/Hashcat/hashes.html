@@ -376,9 +376,27 @@
                      </br>
                      </br>
 
+                     <label for="device_type">End Date (Optional)</label>
+                     </br>
+                     <div class='input-group date' id='datetimepicker_dict'>
+                        <input type='text' class="form-control" name="end_datetime" />
+                        <span class="input-group-addon">
+                           <span class="glyphicon glyphicon-calendar"></span>
+                        </span>
+                     </div>
+                     </br>
+                     </br>
+
                      <button type="submit" class="btn btn-primary" >Create session</button>
                      </form>
                   </div>
+
+                  <script type="text/javascript">
+                     $(function () {
+                        $('#datetimepicker_dict').datetimepicker();
+                     });
+                  </script>
+
 
                   <div role="tabpanel" class="tab-pane" id="mask_bruteforce">
 
@@ -419,10 +437,26 @@
                      </br>
                      </br>
 
+                     <label for="device_type">End Date (Optional)</label>
+                     </br>
+                     <div class='input-group date' id='datetimepicker_btf'>
+                        <input type='text' class="form-control" name="end_datetime" />
+                        <span class="input-group-addon">
+                           <span class="glyphicon glyphicon-calendar"></span>
+                        </span>
+                     </div>
+                     </br>
+                     </br>
+
                      <button type="submit" class="btn btn-primary" >Create session</button>
                      </form>
-
                   </div>
+
+                  <script type="text/javascript">
+                     $(function () {
+                        $('#datetimepicker_btf').datetimepicker();
+                     });
+                  </script>
 
                </div>
             </div>

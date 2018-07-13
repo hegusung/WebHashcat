@@ -301,42 +301,57 @@ def api_hashfile_sessions(request):
         try:
             hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
             session_info = hashcat_api.get_session_info(session.name)
+            print(session_info)
+            if session_info["response"] != "error":
+                if session_info["status"] == "Not started":
+                    buttons =  "<button title='Start session' type='button' class='btn btn-success btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-play'></span></button>" % (session.name, "start")
+                    buttons +=  "<button title='Remove session' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-remove'></span></button>" % (session.name, "remove")
+                elif session_info["status"] == "Running":
+                    buttons =  "<button title='Pause session' type='button' class='btn btn-warning btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-pause'></span></button>" % (session.name, "pause")
+                    buttons +=  "<button title='Stop session' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-stop'></span></button>" % (session.name, "quit")
+                elif session_info["status"] == "Paused":
+                    buttons =  "<button title='Resume session' type='button' class='btn btn-success btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-play'></span></button>" % (session.name, "resume")
+                    buttons +=  "<button title='Stop session' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-stop'></span></button>" % (session.name, "quit")
+                else:
+                    buttons =  "<button title='Start session' type='button' class='btn btn-success btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-play'></span></button>" % (session.name, "start")
+                    buttons +=  "<button title='Remove session' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-remove'></span></button>" % (session.name, "remove")
 
-            if session_info["status"] == "Not started":
-                buttons =  "<button title='Start session' type='button' class='btn btn-success btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-play'></span></button>" % (session.name, "start")
-                buttons +=  "<button title='Remove session' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-remove'></span></button>" % (session.name, "remove")
-            elif session_info["status"] == "Running":
-                buttons =  "<button title='Pause session' type='button' class='btn btn-warning btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-pause'></span></button>" % (session.name, "pause")
-                buttons +=  "<button title='Stop session' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-stop'></span></button>" % (session.name, "quit")
-            elif session_info["status"] == "Paused":
-                buttons =  "<button title='Resume session' type='button' class='btn btn-success btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-play'></span></button>" % (session.name, "resume")
-                buttons +=  "<button title='Stop session' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-stop'></span></button>" % (session.name, "quit")
+                buttons = "<div style='float: right'>%s</div>" % buttons
+
+                if session_info["crack_type"] == "dictionary":
+                    rule_mask = session_info["rule"]
+                    wordlist = session_info["wordlist"]
+                elif session_info["crack_type"] == "mask":
+                    rule_mask = session_info["mask"]
+                    wordlist = ""
+
+                status = session_info["status"]
+                if status == "Error":
+                    status += ' <a href="#" data-toggle="tooltip" data-placement="right" title="%s"><span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span></a>' % session_info["reason"]
+
+                crack_type = session_info["crack_type"]
+                remaining = session_info["time_estimated"]
+                progress = "%s %%" % session_info["progress"]
+                speed = session_info["speed"]
             else:
-                buttons =  "<button title='Start session' type='button' class='btn btn-success btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-play'></span></button>" % (session.name, "start")
-                buttons +=  "<button title='Remove session' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-remove'></span></button>" % (session.name, "remove")
-
-            buttons = "<div style='float: right'>%s</div>" % buttons
-
-            if session_info["crack_type"] == "dictionary":
-                rule_mask = session_info["rule"]
-                wordlist = session_info["wordlist"]
-            elif session_info["crack_type"] == "mask":
-                rule_mask = session_info["mask"]
+                status = "Inexistant"
+                crack_type = ""
+                rule_mask = ""
                 wordlist = ""
-
-            status = session_info["status"]
-            if status == "Error":
-                status += ' <a href="#" data-toggle="tooltip" data-placement="right" title="%s"><span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span></a>' % session_info["reason"]
+                remaining = ""
+                progress = ""
+                speed = ""
+                buttons =  "<button title='Remove session' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='session_action(\"%s\", \"%s\")'><span class='glyphicon glyphicon-remove'></span></button>" % (session.name, "remove")
 
             data.append({
                 "node": node.name,
-                "type": session_info["crack_type"],
+                "type": crack_type,
                 "rule_mask": rule_mask,
                 "wordlist": wordlist,
                 "status": status,
-                "remaining": session_info["time_estimated"],
-                "progress": "%s %%" % session_info["progress"],
-                "speed": session_info["speed"],
+                "remaining": remaining,
+                "progress": progress,
+                "speed": speed,
                 "buttons": buttons,
             })
         except ConnectionRefusedError:
