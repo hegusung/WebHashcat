@@ -425,10 +425,8 @@ class Session(Model):
             # check timestamp
             if self.end_timestamp:
                 current_timestamp = int(datetime.utcnow().timestamp())
-                print("%d > %d" % (current_timestamp, self.end_timestamp))
 
                 if current_timestamp > self.end_timestamp:
-                    print("END!")
                     self.session_process.stdin.write(b'q')
                     self.session_process.stdin.flush()
                     break
