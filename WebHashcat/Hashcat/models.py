@@ -30,8 +30,8 @@ class Hash(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['hashfile_id'], name="hashfileid_index"),
-            models.Index(fields=['hashfile_id', 'hash'], name="hashfileid_hash_index"),
+            models.Index(fields=['hashfile'], name="hashfileid_index"),
+            models.Index(fields=['hashfile', 'hash'], name="hashfileid_hash_index"),
             models.Index(fields=['hash', 'hash_type'], name="hash_index"),
         ]
 
