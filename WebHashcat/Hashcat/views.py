@@ -178,11 +178,16 @@ def new_session(request):
 
         session_name = ("%s-%s" % (hashfile.name, ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)))).replace(" ", "_")
 
+        if "debug" in request.POST:
+            hashcat_debug_file = True
+        else:
+            hashcat_debug_file = False
+
         hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
         if crack_type == "dictionary":
-            res = hashcat_api.create_dictionary_session(session_name, hashfile, rule, wordlist, device_type, end_timestamp)
+            res = hashcat_api.create_dictionary_session(session_name, hashfile, rule, wordlist, device_type, end_timestamp, hashcat_debug_file)
         elif crack_type == "mask":
-            res = hashcat_api.create_mask_session(session_name, hashfile, mask, device_type, end_timestamp)
+            res = hashcat_api.create_mask_session(session_name, hashfile, mask, device_type, end_timestamp, hashcat_debug_file)
 
         if res["response"] == "error":
             messages.error(request, res["message"])

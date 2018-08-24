@@ -237,6 +237,7 @@ class Server:
                 data["username_included"],
                 int(data["device_type"]),
                 int(data["end_timestamp"]) if data["end_timestamp"] != None else None,
+                data["hashcat_debug_file"],
             )
 
             res = {"response": "ok"}

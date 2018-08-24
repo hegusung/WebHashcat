@@ -22,7 +22,7 @@ class HashcatAPI(object):
     def get_hashcat_info(self):
         return self.send("/hashcatInfo")
 
-    def create_dictionary_session(self, session_name, hashfile, rule, wordlist, device_type, end_timestamp):
+    def create_dictionary_session(self, session_name, hashfile, rule, wordlist, device_type, end_timestamp, hashcat_debug_file):
         hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
 
         from Utils.hashcat import Hashcat
@@ -41,6 +41,7 @@ class HashcatAPI(object):
                 "username_included": False,
                 "device_type": device_type,
                 "end_timestamp": end_timestamp,
+                "hashcat_debug_file": hashcat_debug_file,
             }
 
             res = self.post_file("/createSession", payload, hashfile_path)
@@ -49,7 +50,7 @@ class HashcatAPI(object):
 
         return res
 
-    def create_mask_session(self, session_name, hashfile, mask, device_type, end_timestamp):
+    def create_mask_session(self, session_name, hashfile, mask, device_type, end_timestamp, hashcat_debug_file):
         hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile.hashfile)
 
         from Utils.hashcat import Hashcat
@@ -70,6 +71,7 @@ class HashcatAPI(object):
                 "username_included": False,
                 "device_type": device_type,
                 "end_timestamp": end_timestamp,
+                "hashcat_debug_file": hashcat_debug_file,
             }
 
             res = self.post_file("/createSession", payload, hashfile_path)
