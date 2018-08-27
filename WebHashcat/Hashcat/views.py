@@ -257,7 +257,7 @@ def hashfile(request, hashfile_id, error_msg=''):
 
     context['hashfile'] = hashfile
     context['lines'] = humanize.intcomma(hashfile.line_count)
-    context['recovered'] = "%s (%.2f%%)" % (humanize.intcomma(hashfile.cracked_count), hashfile.cracked_count/hashfile.line_count*100)
+    context['recovered'] = "%s (%.2f%%)" % (humanize.intcomma(hashfile.cracked_count), hashfile.cracked_count/hashfile.line_count*100) if hashfile.line_count != 0 else "0"
     context['hash_type'] = "Plaintext" if hashfile.hash_type == -1 else Hashcat.get_hash_types()[hashfile.hash_type]["name"]
 
     template = loader.get_template('Hashcat/hashfile.html')

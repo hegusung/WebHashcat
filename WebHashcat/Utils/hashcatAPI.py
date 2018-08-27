@@ -67,7 +67,6 @@ class HashcatAPI(object):
                 "crack_type": "mask",
                 "hash_mode_id": hashfile.hash_type,
                 "mask": mask,
-                "hashes": hashes,
                 "username_included": False,
                 "device_type": device_type,
                 "end_timestamp": end_timestamp,
