@@ -99,8 +99,14 @@ def api_statistics(request):
 
     count_lines = Hashfile.objects.aggregate(Sum('line_count'))["line_count__sum"]
     count_cracked = Hashfile.objects.aggregate(Sum('cracked_count'))["cracked_count__sum"]
-    data.append(["<b>Lines</b>", humanize.intcomma(count_lines)])
-    data.append(["<b>Cracked</b>", "%s (%.2f%%)" % (humanize.intcomma(count_cracked), count_cracked/count_lines*100.0)])
+    if count_cracked == None:
+        count_cracked = 0
+    if count_lines == None:
+        data.append(["<b>Lines</b>", humanize.intcomma(0)])
+        data.append(["<b>Cracked</b>", "%s (%.2f%%)" % (humanize.intcomma(count_cracked), 0)])
+    else:
+        data.append(["<b>Lines</b>", humanize.intcomma(count_lines)])
+        data.append(["<b>Cracked</b>", "%s (%.2f%%)" % (humanize.intcomma(count_cracked), count_cracked/count_lines*100.0)])
     data.append(["<b>Hashfiles</b>", Hashfile.objects.count()])
     data.append(["<b>Nodes</b>", Node.objects.count()])
 
@@ -118,10 +124,18 @@ def api_cracked_ratio(request):
     count_lines = Hashfile.objects.aggregate(Sum('line_count'))["line_count__sum"]
     count_cracked = Hashfile.objects.aggregate(Sum('cracked_count'))["cracked_count__sum"]
 
-    result = [
-        ["Cracked", count_cracked/count_lines*100.0],
-        ["Uncracked", (1-count_cracked/count_lines)*100.0],
-    ]
+    if count_cracked == None:
+        count_cracked = 0
+    if count_lines == None:
+        result = [
+            ["Cracked", 0.0],
+            ["Uncracked", 0.0],
+        ]
+    else:
+        result = [
+            ["Cracked", count_cracked/count_lines*100.0],
+            ["Uncracked", (1-count_cracked/count_lines)*100.0],
+        ]
 
     return HttpResponse(json.dumps(result), content_type="application/json")
 
