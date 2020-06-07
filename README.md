@@ -65,7 +65,7 @@ Install the pip packages:
 pip3 install -r requirements.txt
 ```
 
-Rename the settings.ini.sample file to settings.ini and fill the parameters accordingly.
+Rename the `settings.ini.sample` file to `settings.ini` and fill the parameters accordingly.
 
 The rules, mask and wordlist directory must be writable by the user running hashcatnode
 
