@@ -95,12 +95,13 @@ Edit the systemd/hashcatnode.service file to match your setup, then copy it to /
 
 ### WebHashcat
 
-#### Configuration
+
+#### Installing Packages
 
 Install the following packages:
 ```
 apt install mysql-server
-apt install ibmysqlclient-dev
+apt install libmysqlclient-dev
 apt install supervisor
 ```
 
@@ -109,13 +110,16 @@ Install the pip packages:
 pip3 install -r requirements.txt
 ```
 
-Create the webhashcat database and user in mysql:
+#### Creating the database
+
 Create the database using the following command to ensure you can insert utf8 usernames/passwords
 ```
 mysql> CREATE DATABASE webhashcat CHARACTER SET utf8;
 mysql> CREATE USER webhashcat IDENTIFIED BY '<insert_password_here>';
 mysql> GRANT ALL PRIVILEGES ON webhashcat.* TO 'webhashcat';
 ```
+
+#### Configuration
 
 WebHashcat is a django application using mysql database, its installation is done this way:
 * Copy `Webhashcat/settings.py.sample` file to `WebHashcat/settings.py`
