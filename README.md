@@ -102,6 +102,7 @@ Install the following packages:
 ```
 apt install mysql-server
 apt install libmysqlclient-dev
+apt install redis
 apt install supervisor
 ```
 
