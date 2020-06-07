@@ -92,8 +92,17 @@ Edit the systemd/hashcatnode.service file to match your setup, then copy it to /
 
 #### Configuration
 
+Create the webhashcat database and user in mysql:
+Create the database using the following command to ensure you can insert utf8 usernames/passwords
+```
+mysql> CREATE DATABASE webhashcat CHARACTER SET utf8;
+mysql> CREATE USER webhashcat IDENTIFIED BY '<insert_password_here>';
+mysql> GRANT ALL PRIVILEGES ON webhashcat.* TO 'webhashcat';
+```
+
 WebHashcat is a django application using mysql database, its installation is done this way:
-* Edit `WebHashcat/settings.py` file:
+* Copy `Webhashcat/settings.py.sample` file to `WebHashcat/settings.py`
+* Edit it:
 - Change the SECRET_KEY parameter
 You can generate a random secret key by running this in a python shell
 ```
@@ -107,14 +116,9 @@ get_random_string(50, chars)
 - Set DEBUG = False if you are using it in production !
 you can refer to the following django documentation for further info: https://docs.djangoproject.com/en/2.0/howto/deployment/checklist/
 
+* Copy `settings.ini.sample` file to `settings.ini`
 * Edit `settings.ini` file
 - the potfile parameter doesn't need to be changed
-
-* Create the mysql database
-Create the database using the following command to ensure you can insert utf8 usernames/passwords
-```
-CREATE DATABASE webhashcat CHARACTER SET utf8;
-```
 
 * Create the tables with django
 ```
