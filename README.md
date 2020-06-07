@@ -60,6 +60,11 @@ Using this functionality you can easily search from client's email addresses in 
 
 ### HashcatNode
 
+Install the pip packages:
+```
+pip3 install -r requirements.txt
+```
+
 Rename the settings.ini.sample file to settings.ini and fill the parameters accordingly.
 
 The rules, mask and wordlist directory must be writable by the user running hashcatnode
@@ -91,6 +96,18 @@ Edit the systemd/hashcatnode.service file to match your setup, then copy it to /
 ### WebHashcat
 
 #### Configuration
+
+Install the following packages:
+```
+apt install mysql-server
+apt install ibmysqlclient-dev
+apt install supervisor
+```
+
+Install the pip packages:
+```
+pip3 install -r requirements.txt
+```
 
 Create the webhashcat database and user in mysql:
 Create the database using the following command to ensure you can insert utf8 usernames/passwords
@@ -145,7 +162,7 @@ https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/modwsgi/
 
 Supervisor is the deamon which is responsible of heavy background tasks such as pulling latest results from the nodes or importing hashfiles.
 
-* After installing supervisor, copy the configuration files from the Webhashcat/supervisor folder to the /etc/supervisor.d/ folder.
+* After installing supervisor, copy the configuration files from the Webhashcat/supervisor folder to the /etc/supervisor/conf.d/ folder.
 * Once done, edit them to match your configuration
 
 #### Dependencies
