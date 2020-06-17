@@ -298,9 +298,17 @@ class Hashcat(object):
                     tmpfile_name = ''.join([random.choice(string.ascii_lowercase) for i in range(16)])
                     tmpfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "tmp", tmpfile_name)
 
+                    f = open(tmpfile_path, "w")
+
                     cursor = connection.cursor()
-                    cursor.execute("SELECT DISTINCT hash FROM Hashcat_hash WHERE hashfile_id=%s INTO OUTFILE %s", [hashfile.id, tmpfile_path])
+                    #cursor.execute("SELECT DISTINCT hash FROM Hashcat_hash WHERE hashfile_id=%s INTO OUTFILE %s", [hashfile.id, tmpfile_path])
+                    cursor.execute("SELECT DISTINCT hash FROM Hashcat_hash WHERE hashfile_id=%s", [hashfile.id])
+                    for row in cursor.fetchall():
+                        print(row)
+                        f.write("%s\n" % row[0])
                     cursor.close()
+
+                    f.close()
 
                     copyfile(tmpfile_path, hashfile_path)
                     os.remove(tmpfile_path)

@@ -13,7 +13,6 @@ import random
 import string
 import operator
 from peewee import Model, SqliteDatabase, CharField, DateTimeField, ForeignKeyField, IntegerField, BooleanField, TextField, BlobField, FloatField
-from fcntl import fcntl, F_GETFL, F_SETFL
 from os import O_NONBLOCK, read
 
 database = SqliteDatabase(os.path.dirname(__file__) + os.sep + "hashcatnode.db")
