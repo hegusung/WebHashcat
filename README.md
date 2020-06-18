@@ -59,10 +59,18 @@ Using this functionality you can easily search from client's email addresses in 
 ## Install
 
 ### HashcatNode
+HashcatNode can be run on both Windows and Python
+
+Windows limitation:
+Only **one** cracking session can be running/paused at a time
 
 Install the pip packages:
 ```
 pip3 install -r requirements.txt
+```
+If you are running it on Windows, install also the pywin32 package
+```
+pip3 install pywin32
 ```
 
 Rename the `settings.ini.sample` file to `settings.ini` and fill the parameters accordingly.
@@ -77,12 +85,17 @@ Run the script (HashcatNode folder)
 ./create_database.py
 ```
 
-* Create the node certificates
+* Create the node certificates (Install a Windows version of OpenSSL if you are running HashcatNode on Windows)
 ```
 openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -days 365 -nodes
 ```
 
-* Register as a service (systemd)
+* HashcatNode can be started manually by:
+```
+python3 hashcatnode.py
+```
+
+* Register as a service (systemd) (linux only)
 Edit the systemd/hashcatnode.service file to match your setup, then copy it to /etc/systemd/system/ 
 
 #### Dependencies
