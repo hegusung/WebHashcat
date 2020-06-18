@@ -525,8 +525,7 @@ class Session(Model):
                 current_timestamp = int(datetime.utcnow().timestamp())
 
                 if current_timestamp > self.end_timestamp:
-                    self.session_process.stdin.write(b'q')
-                    self.session_process.stdin.flush()
+                    self.quit()
                     break
 
 
