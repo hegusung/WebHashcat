@@ -418,14 +418,14 @@ class Session(Model):
     def session_thread(self):
         # Prepare regex to parse the main hashcat process output
         regex_list = [
-            ("hash_type", re.compile("^Hash\.Type\.+: (.*)\s*$")),
-            ("speed", re.compile("^Speed\.Dev\.#1\.+: (.*)\s*$")),
+            ("hash_type", re.compile("^Hash\.Type\.+: +(.*)\s*$")),
+            ("speed", re.compile("^Speed\.#1\.+: +(.*)\s*$")),
         ]
         if self.crack_type == "dictionary":
-            regex_list.append(("progress", re.compile("^Progress\.+: \d+/\d+ \((\S+)%\)\s*$")))
-            regex_list.append(("time_estimated", re.compile("^Time\.Estimated\.+: (.*)\s*$")))
+            regex_list.append(("progress", re.compile("^Progress\.+: +\d+/\d+ \((\S+)%\)\s*$")))
+            regex_list.append(("time_estimated", re.compile("^Time\.Estimated\.+: +(.*)\s*$")))
         elif self.crack_type == "mask":
-            regex_list.append(("progress", re.compile("^Input\.Mode\.+:\s+Mask\s+\(\S+\)\s+\[\d+\]\s+\((\S+)%\)\s*$")))
+            regex_list.append(("progress", re.compile("^Input\.Mode\.+: +Mask\s+\(\S+\)\s+\[\d+\]\s+\((\S+)%\)\s*$")))
 
         self.time_started = str(datetime.now())
 
