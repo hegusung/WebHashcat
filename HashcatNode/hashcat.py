@@ -5,6 +5,8 @@ import re
 import time
 import subprocess
 import logging
+import hashlib
+import tempfile
 from os import listdir
 from os.path import isfile, join
 from datetime import datetime
@@ -12,10 +14,11 @@ import threading
 import random
 import string
 import operator
+if os.name == 'nt':
+    import win32console
 from peewee import Model, SqliteDatabase, CharField, DateTimeField, ForeignKeyField, IntegerField, BooleanField, TextField, BlobField, FloatField
-from os import O_NONBLOCK, read
 
-database = SqliteDatabase(os.path.dirname(__file__) + os.sep + "hashcatnode.db")
+database = SqliteDatabase(os.path.dirname(os.path.abspath( __file__ )) + os.sep + "hashcatnode.db")
 
 class Hashcat(object):
 
@@ -32,7 +35,8 @@ class Hashcat(object):
     @classmethod
     def parse_version(self):
 
-        hashcat_version = subprocess.Popen([self.binary, '-V'] , stdout=subprocess.PIPE)
+        # cwd needs to be added for Windows version of hashcat
+        hashcat_version = subprocess.Popen([self.binary, '-V'] , stdout=subprocess.PIPE, cwd=os.path.dirname(self.binary))
         self.version = hashcat_version.communicate()[0].decode()
 
     """
@@ -40,12 +44,12 @@ class Hashcat(object):
     """
     @classmethod
     def parse_help(self):
-
         help_section = None
         help_section_regex = re.compile("^- \[ (?P<section_name>.*) \] -$")
         hash_mode_regex = re.compile("^\s*(?P<id>\d+)\s+\|\s+(?P<name>.+)\s+\|\s+(?P<description>.+)\s*$")
 
-        hashcat_help = subprocess.Popen([self.binary, '--help'], stdout=subprocess.PIPE)
+        # cwd needs to be added for Windows version of hashcat
+        hashcat_help = subprocess.Popen([self.binary, '--help'], stdout=subprocess.PIPE, cwd=os.path.dirname(self.binary))
         for line in hashcat_help.stdout:
             line = line.decode()
             line = line.rstrip()
@@ -73,6 +77,22 @@ class Hashcat(object):
     def parse_rules(self):
         self.rules = {}
 
+        file_list = [join(self.rules_dir, f) for f in listdir(self.rules_dir) if isfile(join(self.rules_dir, f)) and f != ".gitkeep"]
+
+        for file in file_list:
+            with open(file, "rb") as f:
+                file_hash = hashlib.md5()
+                while chunk := f.read(8192):
+                    file_hash.update(chunk)
+
+                self.rules[os.path.basename(file)] = {
+                    "name": os.path.basename(file),
+                    "md5": file_hash.hexdigest(),
+                    "path": file,
+                }
+
+        # Not comptatible with windows, lets make a pure python version
+        """
         path = os.path.join(self.rules_dir, "*")
 
         # use md5sum instead of python code for performance issues on a big file
@@ -86,6 +106,7 @@ class Hashcat(object):
                         "md5": items[0],
                         "path": items[1],
                     }
+        """
 
     """
         Parse wordlist directory
@@ -94,6 +115,22 @@ class Hashcat(object):
     def parse_wordlists(self):
         self.wordlists = {}
 
+        file_list = [join(self.wordlist_dir, f) for f in listdir(self.wordlist_dir) if isfile(join(self.wordlist_dir, f)) and f != ".gitkeep"]
+
+        for file in file_list:
+            with open(file, "rb") as f:
+                file_hash = hashlib.md5()
+                while chunk := f.read(8192):
+                    file_hash.update(chunk)
+
+                self.wordlists[os.path.basename(file)] = {
+                    "name": os.path.basename(file),
+                    "md5": file_hash.hexdigest(),
+                    "path": file,
+                }
+
+        # Not comptatible with windows, lets make a pure python version
+        """
         path = os.path.join(self.wordlist_dir, "*")
 
         # use md5sum instead of python code for performance issues on a big file
@@ -107,6 +144,7 @@ class Hashcat(object):
                         "md5": items[0],
                         "path": items[1],
                     }
+        """
 
     """
         Parse mask directory
@@ -115,6 +153,22 @@ class Hashcat(object):
     def parse_masks(self):
         self.masks = {}
 
+        file_list = [join(self.mask_dir, f) for f in listdir(self.mask_dir) if isfile(join(self.mask_dir, f)) and f != ".gitkeep"]
+
+        for file in file_list:
+            with open(file, "rb") as f:
+                file_hash = hashlib.md5()
+                while chunk := f.read(8192):
+                    file_hash.update(chunk)
+
+                self.masks[os.path.basename(file)] = {
+                    "name": os.path.basename(file),
+                    "md5": file_hash.hexdigest(),
+                    "path": file,
+                }
+
+        # Not comptatible with windows, lets make a pure python version
+        """
         path = os.path.join(self.mask_dir, "*")
 
         # use md5sum instead of python code for performance issues on a big file
@@ -128,6 +182,7 @@ class Hashcat(object):
                         "md5": items[0],
                         "path": items[1],
                     }
+        """
 
     """
         Create a new session
@@ -300,6 +355,18 @@ class Hashcat(object):
 
         logging.info("Wordlist file %s uploaded" % name)
 
+    """
+        Returns the number of running/paused hashcat sessions
+    """
+    @classmethod
+    def number_ongoing_sessions(self):
+        number = 0
+
+        for session_name, session in self.sessions.items():
+            if session.session_status in ["Paused", "Running"]:
+                number += 1
+
+        return number
 
 class Session(Model):
     name = CharField(unique=True)
@@ -322,11 +389,11 @@ class Session(Model):
     def setup(self):
         # File to store the processes output
         random_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
-        self.result_file = os.path.join("/tmp", random_name+".cracked")
+        self.result_file = os.path.join(tempfile.gettempdir(), random_name+".cracked")
 
         # File to store the hashcat output
         random_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
-        self.hashcat_output_file = os.path.join("/tmp", random_name+".hashcat")
+        self.hashcat_output_file = os.path.join(tempfile.gettempdir(), random_name+".hashcat")
         open(self.hashcat_output_file,'a').close()
 
         self.hash_type = "N/A"
@@ -335,12 +402,17 @@ class Session(Model):
         self.recovered = "N/A"
 
     def start(self):
+        if os.name == 'nt':
+            if Hashcat.number_ongoing_sessions() > 0:
+                raise Exception("Windows version of Hashcatnode only supports 1 running hashcat at a time")
+
         self.thread = threading.Thread(target=self.session_thread)
         self.thread.start()
 
         # Little delay to ensure the process if properly launched
         time.sleep(1)
 
+        # TO UNCOMMENT
         self.status()
 
     def session_thread(self):
@@ -385,11 +457,31 @@ class Session(Model):
         self.time_started = datetime.utcnow()
         self.save()
 
-        self.session_process = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        if os.name == 'nt':
+            # To controlhashcat on Windows, very different implementation than on linux
+            # Look at:
+            # https://github.com/hashcat/hashcat/blob/9dffc69089d6c52e6f3f1a26440dbef140338191/src/terminal.c#L477
+            free_console=True
+            try:
+                win32console.AllocConsole()
+            except win32console.error as exc:
+                if exc.winerror!=5:
+                    raise
+                ## only free console if one was created successfully
+                free_console=False
+
+            self.win_stdin = win32console.GetStdHandle(win32console.STD_INPUT_HANDLE)
+
+        # cwd needs to be added for Windows version of hashcat
+        if os.name == 'nt':
+            self.session_process = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=os.path.dirname(Hashcat.binary))
+        else:
+            self.session_process = subprocess.Popen(cmd_line, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE, cwd=os.path.dirname(Hashcat.binary))
 
         self.update_session()
 
         for line in self.session_process.stdout:
+            time.sleep(0.1)
             with open(self.hashcat_output_file, "ab") as f:
                 f.write(line)
 
@@ -437,9 +529,9 @@ class Session(Model):
         return {
             "name": self.name,
             "crack_type": self.crack_type,
-            "rule": self.rule_file.split("/")[-1][:-5] if self.rule_file else None,
-            "mask": self.mask_file.split("/")[-1][:-7] if self.mask_file else None,
-            "wordlist": self.wordlist_file.split("/")[-1][:-1*len(".wordlist")] if self.wordlist_file else None,
+            "rule": os.path.basename(self.rule_file)[:-5] if self.rule_file else None,
+            "mask": os.path.basename(self.mask_file)[:-7] if self.mask_file else None,
+            "wordlist": os.path.basename(self.wordlist_file)[:-1*len(".wordlist")] if self.wordlist_file else None,
             "status": self.session_status,
             "time_started": str(self.time_started),
             "time_estimated": self.time_estimated,
@@ -533,7 +625,8 @@ class Session(Model):
         else:
             cmd_line += ["--outfile-format", "3"]
         cmd_line += ["--potfile-path", self.pot_file]
-        p = subprocess.Popen(cmd_line)
+        # cwd needs to be added for Windows version of hashcat
+        p = subprocess.Popen(cmd_line, cwd=os.path.dirname(Hashcat.binary))
         p.wait()
 
         return open(self.result_file).read()
@@ -551,8 +644,16 @@ class Session(Model):
         if not self.session_status in ["Paused", "Running"]:
             return
 
-        self.session_process.stdin.write(b's')
-        self.session_process.stdin.flush()
+        if os.name == 'nt':
+            evt = win32console.PyINPUT_RECORDType(win32console.KEY_EVENT)
+            evt.Char = 's'
+            evt.RepeatCount = 1
+            evt.KeyDown = True
+            evt.VirtualKeyCode=0x0
+            self.win_stdin.WriteConsoleInput([evt])
+        else:
+            self.session_process.stdin.write(b's')
+            self.session_process.stdin.flush()
 
     """
         Pause the session
@@ -562,8 +663,17 @@ class Session(Model):
             return
 
         while self.session_status != "Paused":
-            self.session_process.stdin.write(b'p')
-            self.session_process.stdin.flush()
+            
+            if os.name == 'nt':
+                evt = win32console.PyINPUT_RECORDType(win32console.KEY_EVENT)
+                evt.Char = 'p'
+                evt.RepeatCount = 1
+                evt.KeyDown = True
+                evt.VirtualKeyCode=0x0
+                self.win_stdin.WriteConsoleInput([evt])
+            else:
+                self.session_process.stdin.write(b'p')
+                self.session_process.stdin.flush()
 
             self.update_session()
 
@@ -577,8 +687,17 @@ class Session(Model):
             return
 
         while self.session_status != "Running":
-            self.session_process.stdin.write(b'r')
-            self.session_process.stdin.flush()
+            
+            if os.name == 'nt':
+                evt = win32console.PyINPUT_RECORDType(win32console.KEY_EVENT)
+                evt.Char = 'r'
+                evt.RepeatCount = 1
+                evt.KeyDown = True
+                evt.VirtualKeyCode=0x0
+                self.win_stdin.WriteConsoleInput([evt])
+            else:
+                self.session_process.stdin.write(b'r')
+                self.session_process.stdin.flush()
 
             self.update_session()
 
@@ -591,8 +710,16 @@ class Session(Model):
         if not self.session_status in ["Paused", "Running"]:
             return
 
-        self.session_process.stdin.write(b'q')
-        self.session_process.stdin.flush()
+        if os.name == 'nt':
+            evt = win32console.PyINPUT_RECORDType(win32console.KEY_EVENT)
+            evt.Char = 'q'
+            evt.RepeatCount = 1
+            evt.KeyDown = True
+            evt.VirtualKeyCode=0x0
+            self.win_stdin.WriteConsoleInput([evt])
+        else:
+            self.session_process.stdin.write(b'q')
+            self.session_process.stdin.flush()
 
         self.thread.join()
 

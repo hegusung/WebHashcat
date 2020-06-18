@@ -368,8 +368,3 @@ class Server:
                 "response": "error",
                 "message": str(e),
             })
-
-
-
-
-

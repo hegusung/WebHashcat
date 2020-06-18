@@ -6,13 +6,13 @@ import logging
 from httpapi import Server
 from hashcat import Hashcat
 
-def main():
+def main(run_server=True):
 
     # Config
 
     config = configparser.ConfigParser()
 
-    current_dir = os.path.dirname(__file__)
+    current_dir = os.path.dirname(os.path.abspath( __file__ ))
 
     config.read(current_dir + os.sep + 'settings.ini')
 
@@ -40,7 +40,7 @@ def main():
         "critical": logging.CRITICAL,
     }
 
-    logfile = os.path.dirname(__file__) + os.sep + 'hashcatnode.log'
+    logfile = os.path.dirname(os.path.abspath( __file__ )) + os.sep + 'hashcatnode.log'
 
     logging.basicConfig(
         filename=logfile,
@@ -66,8 +66,11 @@ def main():
 
     Hashcat.reload_sessions()
 
-    httpsServer = Server(bind_address, bind_port, username, password, hashes_dir)
-    httpsServer.start_server()
+    if run_server:
+        httpsServer = Server(bind_address, bind_port, username, password, hashes_dir)
+        httpsServer.start_server()
+
+    return Hashcat
 
 if __name__ == "__main__":
     main()
