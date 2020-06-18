@@ -19,6 +19,7 @@ HashcatNode/rules/*.rule
 HashcatNode/masks/*.hcmask
 HashcatNode/potfiles/*.potfile
 HashcatNode/wordlists/*.wordlist
+HashcatNode/outputs/*.output
 HashcatNode/hashcatnode.db
 HashcatNode/hashcatnode.log
 TODO

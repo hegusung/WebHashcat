@@ -234,7 +234,10 @@ class Server:
                 data["wordlist"] if "wordlist" in data else None,
                 data["rule"] if "rule" in data else None,
                 data["mask"] if "mask" in data else None,
-                data["username_included"]
+                data["username_included"],
+                int(data["device_type"]),
+                int(data["end_timestamp"]) if data["end_timestamp"] != None else None,
+                data["hashcat_debug_file"],
             )
 
             res = {"response": "ok"}

@@ -366,9 +366,40 @@
                      </br>
                      </br>
 
+                     <label for="device_type">Device Type</label>
+                     </br>
+                     <select name="device_type" id="device_type">
+                        <option value="2">GPU</option>
+                        <option value="1">CPU</option>
+                        <option value="3">FPGA, DSP, Co-Processor</option>
+                     </select>
+                     </br>
+                     </br>
+
+                     <label for="device_type">End Date (Optional)</label>
+                     </br>
+                     <div class='input-group date' id='datetimepicker_dict'>
+                        <input type='text' class="form-control" name="end_datetime" />
+                        <span class="input-group-addon">
+                           <span class="glyphicon glyphicon-calendar"></span>
+                        </span>
+                     </div>
+                     </br>
+
+                     <input type="checkbox" name="debug" value="debug" id="debug"><label for="debug">  Save hashcat output file for debug purposes</label>
+                     </br>
+                     </br>
+
                      <button type="submit" class="btn btn-primary" >Create session</button>
                      </form>
                   </div>
+
+                  <script type="text/javascript">
+                     $(function () {
+                        $('#datetimepicker_dict').datetimepicker();
+                     });
+                  </script>
+
 
                   <div role="tabpanel" class="tab-pane" id="mask_bruteforce">
 
@@ -399,12 +430,39 @@
                      </br>
                      </br>
 
-                     <br>
-                     <br>
+                     <label for="device_type">Device Type</label>
+                     </br>
+                     <select name="device_type" id="device_type">
+                        <option value="2">GPU</option>
+                        <option value="1">CPU</option>
+                        <option value="3">FPGA, DSP, Co-Processor</option>
+                     </select>
+                     </br>
+                     </br>
+
+                     <label for="device_type">End Date (Optional)</label>
+                     </br>
+                     <div class='input-group date' id='datetimepicker_btf'>
+                        <input type='text' class="form-control" name="end_datetime" />
+                        <span class="input-group-addon">
+                           <span class="glyphicon glyphicon-calendar"></span>
+                        </span>
+                     </div>
+                     </br>
+
+                     <input type="checkbox" name="debug" value="debug" id="debug"><label for="debug">  Save hashcat output file for debug purposes</label>
+                     </br>
+                     </br>
+
                      <button type="submit" class="btn btn-primary" >Create session</button>
                      </form>
-
                   </div>
+
+                  <script type="text/javascript">
+                     $(function () {
+                        $('#datetimepicker_btf').datetimepicker();
+                     });
+                  </script>
 
                </div>
             </div>

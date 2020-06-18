@@ -188,7 +188,7 @@ class Hashcat(object):
         Create a new session
     """
     @classmethod
-    def create_session(self, name, crack_type, hash_file, hash_mode_id, wordlist, rule, mask, username_included):
+    def create_session(self, name, crack_type, hash_file, hash_mode_id, wordlist, rule, mask, username_included, device_type, end_timestamp, hashcat_debug_file):
 
         if name in self.sessions:
             raise Exception("This session name has already been used")
@@ -198,6 +198,9 @@ class Hashcat(object):
 
         if not crack_type in ["dictionary", "mask"]:
             raise Exception("Unsupported cracking type: %s" % crack_type)
+
+        if not device_type in [1, 2, 3]:
+            raise Exception("Unsupported device type: %d" % device_type)
 
         if crack_type == "dictionary":
             if rule != None and not rule in self.rules:
@@ -221,6 +224,11 @@ class Hashcat(object):
 
         pot_file = os.path.join(os.path.dirname(__file__), "potfiles", ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".potfile")
 
+        if hashcat_debug_file:
+            output_file = os.path.join(os.path.dirname(__file__), "outputs", ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".output")
+        else:
+            output_file = None
+
         session = Session(
             name=name,
             crack_type=crack_type,
@@ -231,6 +239,9 @@ class Hashcat(object):
             rule_file=rule_path,
             mask_file=mask_path,
             username_included=username_included,
+            device_type=device_type,
+            end_timestamp=end_timestamp,
+            output_file=output_file,
             session_status="Not started",
             time_started=None,
             progress=0,
@@ -378,6 +389,9 @@ class Session(Model):
     wordlist_file = CharField(null=True)
     mask_file = CharField(null=True)
     username_included = BooleanField()
+    device_type = IntegerField()
+    end_timestamp = IntegerField(null=True)
+    output_file = CharField(null=True)
     session_status = CharField()
     time_started = DateTimeField(null=True)
     progress = FloatField()
@@ -440,6 +454,8 @@ class Session(Model):
                 cmd_line = [Hashcat.binary, '--session', self.name, '--status', '-a', '3', '-m', str(self.hash_mode_id), self.hash_file, self.mask_file]
             if self.username_included:
                 cmd_line += ["--username"]
+            if self.device_type:
+                cmd_line += ["-D", str(self.device_type)]
             # workload profile
             cmd_line += ["--workload-profile", Hashcat.workload_profile]
             # set pot file
@@ -504,6 +520,16 @@ class Session(Model):
                 if m:
                     setattr(self, var, m.group(1))
 
+            # check timestamp
+            if self.end_timestamp:
+                current_timestamp = int(datetime.utcnow().timestamp())
+
+                if current_timestamp > self.end_timestamp:
+                    self.session_process.stdin.write(b'q')
+                    self.session_process.stdin.flush()
+                    break
+
+
         return_code = self.session_process.wait()
         # The cracking ended, set the parameters accordingly
         if return_code in [255,254]:
@@ -529,6 +555,7 @@ class Session(Model):
         return {
             "name": self.name,
             "crack_type": self.crack_type,
+            "device_type": self.device_type,
             "rule": os.path.basename(self.rule_file)[:-5] if self.rule_file else None,
             "mask": os.path.basename(self.mask_file)[:-7] if self.mask_file else None,
             "wordlist": os.path.basename(self.wordlist_file)[:-1*len(".wordlist")] if self.wordlist_file else None,

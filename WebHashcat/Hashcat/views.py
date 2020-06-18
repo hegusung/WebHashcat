@@ -6,6 +6,7 @@ import os.path
 import tempfile
 import humanize
 import time
+from datetime import datetime
 from collections import OrderedDict
 
 from django.shortcuts import render
@@ -168,13 +169,25 @@ def new_session(request):
         elif crack_type == "mask":
             mask = request.POST["mask"]
 
+        device_type = int(request.POST["device_type"])
+
+        if request.POST["end_datetime"]:
+            end_timestamp = int(datetime.strptime(request.POST["end_datetime"], "%m/%d/%Y %I:%M %p").timestamp())
+        else:
+            end_timestamp = None
+
         session_name = ("%s-%s" % (hashfile.name, ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)))).replace(" ", "_")
+
+        if "debug" in request.POST:
+            hashcat_debug_file = True
+        else:
+            hashcat_debug_file = False
 
         hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
         if crack_type == "dictionary":
-            res = hashcat_api.create_dictionary_session(session_name, hashfile, rule, wordlist)
+            res = hashcat_api.create_dictionary_session(session_name, hashfile, rule, wordlist, device_type, end_timestamp, hashcat_debug_file)
         elif crack_type == "mask":
-            res = hashcat_api.create_mask_session(session_name, hashfile, mask)
+            res = hashcat_api.create_mask_session(session_name, hashfile, mask, device_type, end_timestamp, hashcat_debug_file)
 
         if res["response"] == "error":
             messages.error(request, res["message"])
