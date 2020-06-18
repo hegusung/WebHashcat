@@ -82,7 +82,10 @@ class Hashcat(object):
         for file in file_list:
             with open(file, "rb") as f:
                 file_hash = hashlib.md5()
-                while chunk := f.read(8192):
+                while True:
+                    chunk = f.read(8192)
+                    if not chunk:
+                        break
                     file_hash.update(chunk)
 
                 self.rules[os.path.basename(file)] = {
@@ -120,7 +123,10 @@ class Hashcat(object):
         for file in file_list:
             with open(file, "rb") as f:
                 file_hash = hashlib.md5()
-                while chunk := f.read(8192):
+                while True:
+                    chunk = f.read(8192)
+                    if not chunk:
+                        break
                     file_hash.update(chunk)
 
                 self.wordlists[os.path.basename(file)] = {
@@ -158,7 +164,10 @@ class Hashcat(object):
         for file in file_list:
             with open(file, "rb") as f:
                 file_hash = hashlib.md5()
-                while chunk := f.read(8192):
+                while True:
+                    chunk = f.read(8192)
+                    if not chunk:
+                        break
                     file_hash.update(chunk)
 
                 self.masks[os.path.basename(file)] = {
