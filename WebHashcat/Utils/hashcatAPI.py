@@ -137,8 +137,9 @@ class HashcatAPI(object):
             "Authorization": "Basic %s" % self.key,
         }
 
+        """
         gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)  # disable certif validation
-        conn = http.client.HTTPSConnection(self.ip, self.port, context=gcontext)
+        conn = http.client.HTTPSConnection(self.ip, self.port, context=gcontext, verify=False)
 
         if data == None:
             conn.request("GET", url, headers=headers)
@@ -146,11 +147,19 @@ class HashcatAPI(object):
             conn.request("POST", url, "%s\r\n\r\n" % json.dumps(data), headers)
 
         res = conn.getresponse()
+        """
 
-        data = res.read()
+        url = "https://%s:%d%s" % (self.ip, self.port, url)
+        if data == None:
+            res = requests.get(url, headers=headers, verify=False)
+        else:
+            res = requests.post(url, json.dumps(data), headers=headers, verify=False)
 
-        conn.close()
-        return json.loads(data.decode("ascii"))
+        #data = res.read()
+        data = res.text
+
+        #conn.close()
+        return json.loads(data)
 
     def post_file(self, url, data, filepath):
         url = "https://%s:%d%s" % (self.ip, self.port, url)

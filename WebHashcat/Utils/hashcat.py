@@ -15,6 +15,7 @@ import humanize
 from shutil import copyfile
 from os import listdir
 from os.path import isfile, join
+from hashlib import sha1
 from operator import itemgetter
 from django.db.utils import ProgrammingError
 from django.contrib import messages
@@ -157,7 +158,7 @@ class Hashcat(object):
             try:
                 # create temporary table
                 cursor.execute("BEGIN;")
-                cursor.execute("CREATE TEMPORARY TABLE " + tmp_table_name + " (hash char(190) PRIMARY KEY, password varchar(190) NOT NULL, pass_len INTEGER, pass_charset varchar(190), pass_mask varchar(190));")
+                cursor.execute("CREATE TEMPORARY TABLE " + tmp_table_name + " (hash_hash varchar(190) PRIMARY KEY, hash LONGTEXT, password varchar(190) NOT NULL, pass_len INTEGER, pass_charset varchar(190), pass_mask varchar(190));")
                 cursor.execute("SET unique_checks=0;")
 
                 bulk_insert_list = []
@@ -166,28 +167,33 @@ class Hashcat(object):
                     line = line.strip()
                     password = line.split(":")[-1]
                     password_hash = ":".join(line.split(":")[0:-1])
+                    password_hash_hash = sha1(password_hash.encode()).hexdigest()
 
                     pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
 
-                    bulk_insert_list += [password_hash, password, pass_len, pass_charset, pass_mask]
+                    print("temp insert")
+                    print("1) %s" % password_hash)
+                    print("2) %s" % password_hash_hash)
+
+                    bulk_insert_list += [password_hash_hash, password_hash, password, pass_len, pass_charset, pass_mask]
                     nb_insert += 1
 
                     if nb_insert >= 1000:
-                        cursor.execute("INSERT INTO " + tmp_table_name + " VALUES " + ", ".join(["(%s, %s, %s, %s, %s)"]*nb_insert) + ";", bulk_insert_list)
+                        cursor.execute("INSERT INTO " + tmp_table_name + " VALUES " + ", ".join(["(%s, %s, %s, %s, %s, %s)"]*nb_insert) + ";", bulk_insert_list)
                         bulk_insert_list = []
                         nb_insert = 0
 
                     # insert into table every 100K rows will prevent MySQL from raising "The number of locks exceeds the lock table size"
                     if index % 100000 == 0:
                         print(index)
-                        cursor.execute("UPDATE " + tmp_table_name + " b JOIN Hashcat_hash a ON a.hash = b.hash AND a.hash_type=%s SET a.password = b.password, a.password_len = b.pass_len, a.password_charset = b.pass_charset, a.password_mask = b.pass_mask;", [hashfile.hash_type])
+                        cursor.execute("UPDATE " + tmp_table_name + " b JOIN Hashcat_hash a ON a.hash_hash = b.hash_hash AND a.hash_type=%s SET a.password = b.password, a.password_len = b.pass_len, a.password_charset = b.pass_charset, a.password_mask = b.pass_mask;", [hashfile.hash_type])
                         cursor.execute("DELETE FROM " + tmp_table_name + ";")
                         cursor.execute("COMMIT;")
 
                 if len(bulk_insert_list) != 0:
-                    cursor.execute("INSERT INTO " + tmp_table_name + " VALUES " + ", ".join(["(%s, %s, %s, %s, %s)"]*nb_insert) + ";", bulk_insert_list)
+                    cursor.execute("INSERT INTO " + tmp_table_name + " VALUES " + ", ".join(["(%s, %s, %s, %s, %s, %s)"]*nb_insert) + ";", bulk_insert_list)
 
-                cursor.execute("UPDATE " + tmp_table_name + " b JOIN Hashcat_hash a ON a.hash = b.hash AND a.hash_type=%s SET a.password = b.password, a.password_len = b.pass_len, a.password_charset = b.pass_charset, a.password_mask = b.pass_mask;", [hashfile.hash_type])
+                cursor.execute("UPDATE " + tmp_table_name + " b JOIN Hashcat_hash a ON a.hash_hash = b.hash_hash AND a.hash_type=%s SET a.password = b.password, a.password_len = b.pass_len, a.password_charset = b.pass_charset, a.password_mask = b.pass_mask;", [hashfile.hash_type])
                 cursor.execute("COMMIT;")
             except Exception as e:
                 traceback.print_exc()
@@ -244,11 +250,19 @@ class Hashcat(object):
                     except IndexError:
                         continue
 
+                    # SHA1 of the hash for joins in MySQL
+                    password_hash_hash = sha1(password_hash.encode()).hexdigest()
+
+                    print("Initial insert")
+                    print("1) %s" % password_hash)
+                    print("2) %s" % password_hash_hash)
+
                     h = Hash(
                             hashfile=hashfile,
                             hash_type=hashfile.hash_type,
                             username=username,
                             hash=password_hash,
+                            hash_hash=password_hash_hash,
                             password=None,
                             password_len=None,
                             password_charset=None,
@@ -284,9 +298,17 @@ class Hashcat(object):
                     tmpfile_name = ''.join([random.choice(string.ascii_lowercase) for i in range(16)])
                     tmpfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "tmp", tmpfile_name)
 
+                    f = open(tmpfile_path, "w")
+
                     cursor = connection.cursor()
-                    cursor.execute("SELECT DISTINCT hash FROM Hashcat_hash WHERE hashfile_id=%s INTO OUTFILE %s", [hashfile.id, tmpfile_path])
+                    #cursor.execute("SELECT DISTINCT hash FROM Hashcat_hash WHERE hashfile_id=%s INTO OUTFILE %s", [hashfile.id, tmpfile_path])
+                    cursor.execute("SELECT DISTINCT hash FROM Hashcat_hash WHERE hashfile_id=%s", [hashfile.id])
+                    for row in cursor.fetchall():
+                        print(row)
+                        f.write("%s\n" % row[0])
                     cursor.close()
+
+                    f.close()
 
                     copyfile(tmpfile_path, hashfile_path)
                     os.remove(tmpfile_path)

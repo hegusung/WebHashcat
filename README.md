@@ -59,8 +59,21 @@ Using this functionality you can easily search from client's email addresses in 
 ## Install
 
 ### HashcatNode
+HashcatNode can be run on both Windows and Python
 
-Rename the settings.ini.sample file to settings.ini and fill the parameters accordingly.
+Windows limitation:
+Only **one** cracking session can be running/paused at a time
+
+Install the pip packages:
+```
+pip3 install -r requirements.txt
+```
+If you are running it on Windows, install also the pywin32 package
+```
+pip3 install pywin32
+```
+
+Rename the `settings.ini.sample` file to `settings.ini` and fill the parameters accordingly.
 
 The rules, mask and wordlist directory must be writable by the user running hashcatnode
 
@@ -72,12 +85,17 @@ Run the script (HashcatNode folder)
 ./create_database.py
 ```
 
-* Create the node certificates
+* Create the node certificates (Install a Windows version of OpenSSL if you are running HashcatNode on Windows)
 ```
 openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -days 365 -nodes
 ```
 
-* Register as a service (systemd)
+* HashcatNode can be started manually by:
+```
+python3 hashcatnode.py
+```
+
+* Register as a service (systemd) (linux only)
 Edit the systemd/hashcatnode.service file to match your setup, then copy it to /etc/systemd/system/ 
 
 #### Dependencies
@@ -90,10 +108,36 @@ Edit the systemd/hashcatnode.service file to match your setup, then copy it to /
 
 ### WebHashcat
 
+
+#### Installing Packages
+
+Install the following packages:
+```
+apt install mysql-server
+apt install libmysqlclient-dev
+apt install redis
+apt install supervisor
+```
+
+Install the pip packages:
+```
+pip3 install -r requirements.txt
+```
+
+#### Creating the database
+
+Create the database using the following command to ensure you can insert utf8 usernames/passwords
+```
+mysql> CREATE DATABASE webhashcat CHARACTER SET utf8;
+mysql> CREATE USER webhashcat IDENTIFIED BY '<insert_password_here>';
+mysql> GRANT ALL PRIVILEGES ON webhashcat.* TO 'webhashcat';
+```
+
 #### Configuration
 
 WebHashcat is a django application using mysql database, its installation is done this way:
-* Edit `WebHashcat/settings.py` file:
+* Copy `Webhashcat/settings.py.sample` file to `WebHashcat/settings.py`
+* Edit it:
 - Change the SECRET_KEY parameter
 You can generate a random secret key by running this in a python shell
 ```
@@ -107,14 +151,9 @@ get_random_string(50, chars)
 - Set DEBUG = False if you are using it in production !
 you can refer to the following django documentation for further info: https://docs.djangoproject.com/en/2.0/howto/deployment/checklist/
 
+* Copy `settings.ini.sample` file to `settings.ini`
 * Edit `settings.ini` file
 - the potfile parameter doesn't need to be changed
-
-* Create the mysql database
-Create the database using the following command to ensure you can insert utf8 usernames/passwords
-```
-CREATE DATABASE webhashcat CHARACTER SET utf8;
-```
 
 * Create the tables with django
 ```
@@ -141,7 +180,7 @@ https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/modwsgi/
 
 Supervisor is the deamon which is responsible of heavy background tasks such as pulling latest results from the nodes or importing hashfiles.
 
-* After installing supervisor, copy the configuration files from the Webhashcat/supervisor folder to the /etc/supervisor.d/ folder.
+* After installing supervisor, copy the configuration files from the Webhashcat/supervisor folder to the /etc/supervisor/conf.d/ folder.
 * Once done, edit them to match your configuration
 
 #### Dependencies
