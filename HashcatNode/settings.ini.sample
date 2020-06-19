@@ -5,7 +5,7 @@ loglevel = warning
 bind = 0.0.0.0
 port = 9999
 username = hashcatnodeuser
-password = hashcatnodepassword
+sha256hash = hashcatnodehash
 
 [Hashcat]
 binary = /usr/bin/hashcat

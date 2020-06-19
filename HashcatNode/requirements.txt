@@ -1,3 +1,3 @@
 flask
-flask-basicauth
+Flask-HTTPAuth
 peewee

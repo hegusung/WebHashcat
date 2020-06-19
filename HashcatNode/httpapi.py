@@ -7,28 +7,37 @@ import ssl
 import datetime
 import random
 import string
+import hashlib
 
 import socketserver
 import base64
 from flask import Flask, request, abort, send_file
-from flask_basicauth import BasicAuth
+from flask_httpauth import HTTPBasicAuth
 from io import BytesIO, StringIO
 
 from hashcat import Hashcat
 
+auth = HTTPBasicAuth()
+
+@auth.verify_password
+def verify_password(username, password):
+    global httpauth_user
+    global httpauth_hash
+    if username == httpauth_user and httpauth_hash == hashlib.sha256(password.encode()).hexdigest():
+        return username
+
 class Server:
-    def __init__(self, host, port, user, password, hash_directory):
+
+    def __init__(self, host, port, auth_user, auth_hash, hash_directory):
         self._host = host
         self._port = int(port)
         self._app = Flask(__name__)
         self._route()
 
-        self._app.config['BASIC_AUTH_FORCE'] = True
-        self._app.config['BASIC_AUTH_USERNAME'] = user
-        self._app.config['BASIC_AUTH_PASSWORD'] = password
-
-        self.user = user
-        self.password = password
+        global httpauth_user
+        global httpauth_hash
+        httpauth_user = auth_user
+        httpauth_hash = auth_hash
 
         self.hash_directory = hash_directory
 
@@ -65,6 +74,7 @@ class Server:
                 - % cracked
                 - % progress
     """
+    @auth.login_required
     def _hashcatInfo(self):
         try:
             hash_types = list(Hashcat.hash_modes.values())
@@ -114,6 +124,7 @@ class Server:
             - Password lengths
             - Password charsets
     """
+    @auth.login_required
     def _sessionInfo(self, session_name):
         try:
 
@@ -132,6 +143,7 @@ class Server:
     """
         Returns session hashcat output
     """
+    @auth.login_required
     def _hashcatOutput(self, session_name):
         try:
             result = {}
@@ -151,6 +163,7 @@ class Server:
     """
         Returns session hashes
     """
+    @auth.login_required
     def _hashes(self, session_name):
         try:
             result = {}
@@ -170,6 +183,7 @@ class Server:
     """
         Returns the potfile starting from a specific line
     """
+    @auth.login_required
     def _get_potfile(self, session_name, from_line):
         from_line = int(from_line)
         try:
@@ -188,6 +202,7 @@ class Server:
     """
         Returns the cracked passwords
     """
+    @auth.login_required
     def _cracked(self, session_name):
         try:
             cracked = Hashcat.sessions[session_name].cracked()
@@ -216,6 +231,7 @@ class Server:
             - mask: mask file to use (if mask-based attack)
             - username_included: is the username before the hashes ? (True/False)
     """
+    @auth.login_required
     def _createSession(self):
         try:
             data = json.loads(request.form.get('json'))
@@ -254,6 +270,7 @@ class Server:
     """
         Delete a session
     """
+    @auth.login_required
     def _removeSession(self, session_name):
         try:
             Hashcat.remove_session(session_name)
@@ -275,6 +292,7 @@ class Server:
             - session: session name
             - action: start, update, pause, resume, quit or remove
     """
+    @auth.login_required
     def _action(self):
         try:
             data = json.loads(request.data.decode())
@@ -309,6 +327,7 @@ class Server:
             - name: rule file name
             - rules: content of the file
     """
+    @auth.login_required
     def _upload_rule(self):
         try:
             data = json.loads(request.data.decode())
@@ -332,6 +351,7 @@ class Server:
             - name: mask file name
             - masks: content of the file
     """
+    @auth.login_required
     def _upload_mask(self):
         try:
             data = json.loads(request.data.decode())
@@ -355,6 +375,7 @@ class Server:
             - name: wordlist file name
             - wordlists: content of the file
     """
+    @auth.login_required
     def _upload_wordlist(self):
         try:
             data = json.loads(request.data.decode())

@@ -20,8 +20,17 @@ def main(run_server=True):
 
     bind_address = config["Server"]["bind"]
     bind_port = config["Server"]["port"]
+    # Docker support
     username = config["Server"]["username"]
-    password = config["Server"]["password"]
+    username_hash = config["Server"]["sha256hash"]
+    if username == 'DOCKER_ENV':
+        username = os.environ.get("HASHCATNODE_USERNAME")
+        if username == None:
+            raise Exception('HASHCATNODE_USERNAME environment variable not defined')
+    if username_hash == 'DOCKER_ENV':
+        username_hash = os.environ.get("HASHCATNODE_HASH")
+        if username_hash == None:
+            raise Exception('HASHCATNODE_HASH environment variable not defined')
 
     binary = config["Hashcat"]["binary"]
     hashes_dir = config["Hashcat"]["hashes_dir"]
@@ -67,7 +76,7 @@ def main(run_server=True):
     Hashcat.reload_sessions()
 
     if run_server:
-        httpsServer = Server(bind_address, bind_port, username, password, hashes_dir)
+        httpsServer = Server(bind_address, bind_port, username, username_hash, hashes_dir)
         httpsServer.start_server()
 
     return Hashcat

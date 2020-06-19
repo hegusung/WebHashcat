@@ -34,6 +34,8 @@ RUN openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -days 
 
 # Prepare config file
 RUN cp settings.ini.sample settings.ini
+RUN sed -i 's/hashcatnodeuser/DOCKER_ENV/' settings.ini
+RUN sed -i 's/hashcatnodehash/DOCKER_ENV/' settings.ini
 RUN sed -i 's/\/path\/to\/hashcatnode\/hashes\/dir/\/hashcatnode\/hashes/' settings.ini
 RUN sed -i 's/\/path\/to\/hashcatnode\/rule\/dir/\/hashcatnode\/rules/' settings.ini
 RUN sed -i 's/\/path\/to\/hashcatnode\/wordlist\/dir/\/hashcatnode\/wordlists/' settings.ini
