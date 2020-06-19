@@ -162,6 +162,12 @@ class HashcatAPI(object):
         return json.loads(data)
 
     def post_file(self, url, data, filepath):
+        headers = {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Accept-Encoding": "text/plain",
+            "Authorization": "Basic %s" % self.key,
+        }
+
         url = "https://%s:%d%s" % (self.ip, self.port, url)
 
         form = encoder.MultipartEncoder({
@@ -169,7 +175,9 @@ class HashcatAPI(object):
             'file': ("file", open(filepath, 'rb'), 'application/octet-stream')
         })
 
-        res = requests.post(url, data=form, headers={'Content-Type': form.content_type}, verify=False)
+        headers['Content-Type'] = form.content_type
+
+        res = requests.post(url, data=form, headers=headers, verify=False)
 
         data = res.text
 

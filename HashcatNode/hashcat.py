@@ -506,7 +506,6 @@ class Session(Model):
         self.update_session()
 
         for line in self.session_process.stdout:
-            time.sleep(0.1)
             with open(self.hashcat_output_file, "ab") as f:
                 f.write(line)
 
@@ -687,8 +686,11 @@ class Session(Model):
             evt.VirtualKeyCode=0x0
             self.win_stdin.WriteConsoleInput([evt])
         else:
-            self.session_process.stdin.write(b's')
-            self.session_process.stdin.flush()
+            try:
+                self.session_process.stdin.write(b's')
+                self.session_process.stdin.flush()
+            except BrokenPipeError:
+                pass
 
     """
         Pause the session
@@ -697,22 +699,21 @@ class Session(Model):
         if not self.session_status in ["Paused", "Running"]:
             return
 
-        while self.session_status != "Paused":
-            
-            if os.name == 'nt':
-                evt = win32console.PyINPUT_RECORDType(win32console.KEY_EVENT)
-                evt.Char = 'p'
-                evt.RepeatCount = 1
-                evt.KeyDown = True
-                evt.VirtualKeyCode=0x0
-                self.win_stdin.WriteConsoleInput([evt])
-            else:
+        if os.name == 'nt':
+            evt = win32console.PyINPUT_RECORDType(win32console.KEY_EVENT)
+            evt.Char = 'p'
+            evt.RepeatCount = 1
+            evt.KeyDown = True
+            evt.VirtualKeyCode=0x0
+            self.win_stdin.WriteConsoleInput([evt])
+        else:
+            try:
                 self.session_process.stdin.write(b'p')
                 self.session_process.stdin.flush()
+            except BrokenPipeError:
+                pass
 
-            self.update_session()
-
-            time.sleep(0.1)
+        self.update_session()
 
     """
         Resume the session
@@ -721,22 +722,21 @@ class Session(Model):
         if not self.session_status in ["Paused", "Running"]:
             return
 
-        while self.session_status != "Running":
-            
-            if os.name == 'nt':
-                evt = win32console.PyINPUT_RECORDType(win32console.KEY_EVENT)
-                evt.Char = 'r'
-                evt.RepeatCount = 1
-                evt.KeyDown = True
-                evt.VirtualKeyCode=0x0
-                self.win_stdin.WriteConsoleInput([evt])
-            else:
+        if os.name == 'nt':
+            evt = win32console.PyINPUT_RECORDType(win32console.KEY_EVENT)
+            evt.Char = 'r'
+            evt.RepeatCount = 1
+            evt.KeyDown = True
+            evt.VirtualKeyCode=0x0
+            self.win_stdin.WriteConsoleInput([evt])
+        else:
+            try:
                 self.session_process.stdin.write(b'r')
                 self.session_process.stdin.flush()
+            except BrokenPipeError:
+                pass
 
-            self.update_session()
-
-            time.sleep(0.1)
+        self.update_session()
 
     """
         Quit the session
@@ -753,10 +753,15 @@ class Session(Model):
             evt.VirtualKeyCode=0x0
             self.win_stdin.WriteConsoleInput([evt])
         else:
-            self.session_process.stdin.write(b'q')
-            self.session_process.stdin.flush()
+            try:
+                self.session_process.stdin.write(b'q')
+                self.session_process.stdin.flush()
+            except BrokenPipeError:
+                pass
 
+        print("Waiting for thread to end....")
         self.thread.join()
+        print("Done")
 
         self.session_status = "Aborted"
         self.save()
