@@ -28,13 +28,18 @@ from Hashcat.models import Session, Hashfile, Hash
 from Utils.hashcatAPI import HashcatAPI
 from Utils.utils import del_hashfile_locks
 
+class ClassProperty(property):
+    def __get__(self, cls, owner):
+        return self.fget.__get__(None, owner)()
+
 class Hashcat(object):
     _hash_types = {}
+    _version = None
 
     @classmethod
     def get_binary(self):
         config = configparser.ConfigParser()
-        utils_dir = os.path.dirname(__file__)
+        utils_dir = os.path.dirname(os.path.abspath( __file__ ))
         config.read(os.path.join(utils_dir, '..', 'settings.ini'))
 
         return config["Hashcat"]["binary"]
@@ -42,7 +47,7 @@ class Hashcat(object):
     @classmethod
     def get_potfile(self):
         config = configparser.ConfigParser()
-        utils_dir = os.path.dirname(__file__)
+        utils_dir =  os.path.dirname(os.path.abspath( __file__ ))
         config.read(os.path.join(utils_dir, '..', 'settings.ini'))
 
         return config["Hashcat"]["potfile"]
@@ -61,7 +66,15 @@ class Hashcat(object):
     def parse_version(self):
 
         hashcat_version = subprocess.Popen([self.get_binary(), '-V'] , stdout=subprocess.PIPE)
-        self.version = hashcat_version.communicate()[0].decode()
+        self._version = hashcat_version.communicate()[0].decode()
+
+    @ClassProperty
+    @classmethod
+    def version(self):
+        if not self._version:
+            self.parse_version()
+
+        return self._version
 
     """
         Parse hashcat help
@@ -120,11 +133,16 @@ class Hashcat(object):
 
         cracked_file = tempfile.NamedTemporaryFile(delete=False)
 
+        hashcat_big_version = int(self.version[1:].split('.')[0])
+
         # is there a way to combine --show and --remove in hashcat ?
 
         # Get cracked hashes
         cmd_line = [self.get_binary(), '--show', '-m', str(hashfile.hash_type), hashfile_path, '-o', cracked_file.name, '--session', session_name]
-        cmd_line += ['--outfile-format', '3']
+        if hashcat_big_version >= 6:
+            cmd_line += ['--outfile-format', '1,2']
+        else:
+            cmd_line += ['--outfile-format', '3']
         if potfile:
             cmd_line += ['--potfile-path', potfile]
         print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
@@ -150,7 +168,6 @@ class Hashcat(object):
         del hashfile_lock
 
         if os.path.exists(cracked_file.name):
-
             start = time.perf_counter()
 
             cursor = connection.cursor()
@@ -171,10 +188,6 @@ class Hashcat(object):
 
                     pass_len, pass_charset, _, pass_mask, _ = analyze_password(password)
 
-                    print("temp insert")
-                    print("1) %s" % password_hash)
-                    print("2) %s" % password_hash_hash)
-
                     bulk_insert_list += [password_hash_hash, password_hash, password, pass_len, pass_charset, pass_mask]
                     nb_insert += 1
 
@@ -185,7 +198,6 @@ class Hashcat(object):
 
                     # insert into table every 100K rows will prevent MySQL from raising "The number of locks exceeds the lock table size"
                     if index % 100000 == 0:
-                        print(index)
                         cursor.execute("UPDATE " + tmp_table_name + " b JOIN Hashcat_hash a ON a.hash_hash = b.hash_hash AND a.hash_type=%s SET a.password = b.password, a.password_len = b.pass_len, a.password_charset = b.pass_charset, a.password_mask = b.pass_mask;", [hashfile.hash_type])
                         cursor.execute("DELETE FROM " + tmp_table_name + ";")
                         cursor.execute("COMMIT;")
@@ -232,7 +244,6 @@ class Hashcat(object):
 
             try:
                 # 1 - import hashfile to database
-                print("importing hashfile to database")
 
                 start = time.perf_counter()
 
@@ -250,12 +261,11 @@ class Hashcat(object):
                     except IndexError:
                         continue
 
+                    if len(password_hash) == 0:
+                        continue
+
                     # SHA1 of the hash for joins in MySQL
                     password_hash_hash = sha1(password_hash.encode()).hexdigest()
-
-                    print("Initial insert")
-                    print("1) %s" % password_hash)
-                    print("2) %s" % password_hash_hash)
 
                     h = Hash(
                             hashfile=hashfile,
@@ -271,7 +281,6 @@ class Hashcat(object):
                     batch_create_list.append(h)
 
                     if len(batch_create_list) >= 100000:
-                        print(index)
                         hashfile.line_count += len(batch_create_list)
                         while len(batch_create_list) != 0:
                             Hash.objects.bulk_create(batch_create_list[:1000])
@@ -304,7 +313,6 @@ class Hashcat(object):
                     #cursor.execute("SELECT DISTINCT hash FROM Hashcat_hash WHERE hashfile_id=%s INTO OUTFILE %s", [hashfile.id, tmpfile_path])
                     cursor.execute("SELECT DISTINCT hash FROM Hashcat_hash WHERE hashfile_id=%s", [hashfile.id])
                     for row in cursor.fetchall():
-                        print(row)
                         f.write("%s\n" % row[0])
                     cursor.close()
 
@@ -567,7 +575,6 @@ class Hashcat(object):
                         remaining = True
                         while(remaining):
                             potfile_data = hashcat_api.get_potfile(session.name, session.potfile_line_retrieved)
-
                             if potfile_data["response"] == "ok" and potfile_data["line_count"] > 0:
                                 f = open(self.get_potfile(), "a", encoding='utf-8')
                                 f.write(potfile_data["potfile_data"])
@@ -669,8 +676,6 @@ class Hashcat(object):
         end = time.perf_counter()
         print(">>> Hashfile %s deleted from database in %fs" % (hashfile.name, end-start))
 
-
-
 # This function is taken from https://github.com/iphelix/pack
 
 def analyze_password(password):
@@ -742,5 +747,6 @@ def analyze_password(password):
     else:                                                   charset = 'all'
 
     return (pass_length, charset, simplemask_string, advancedmask_string, policy)
+
 
 

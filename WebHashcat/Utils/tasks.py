@@ -9,6 +9,8 @@ import random
 import csv
 import time
 from shutil import copyfile
+#from celery import Celery
+from WebHashcat.celery import app
 from celery.task.schedules import crontab
 from celery.decorators import task
 from celery.decorators import periodic_task
@@ -33,9 +35,8 @@ def cleanup_tasks(sender, instance, **kwargs):
         search.status = "Aborted"
         search.save()
 
-@task(name="import_hashfile_task")
+@app.task(name="import_hashfile_task")
 def import_hashfile_task(hashfile_id):
-
     hashfile = Hashfile.objects.get(id=hashfile_id)
 
     task = Task(
@@ -66,7 +67,7 @@ def import_hashfile_task(hashfile_id):
     finally:
         task.delete()
 
-@task(name="remove_hashfile_task")
+@app.task(name="remove_hashfile_task")
 def remove_hashfile_task(hashfile_id):
 
     hashfile = Hashfile.objects.get(id=hashfile_id)
@@ -84,7 +85,7 @@ def remove_hashfile_task(hashfile_id):
     finally:
         task.delete()
 
-@task(name="run_search_task")
+@app.task(name="run_search_task")
 def run_search_task(search_id):
 
     search = Search.objects.get(id=search_id)
@@ -187,7 +188,7 @@ def run_search_task(search_id):
         task.delete()
 
 @periodic_task(
-    run_every=(crontab(minute='*/5')),
+    run_every=(crontab(minute='*')), # Changed to */1 for debug, original */5
     name="update_potfile_task",
     ignore_result=True
 )

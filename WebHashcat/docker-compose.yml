@@ -1,0 +1,57 @@
+version: '3.7'
+
+services:
+  web:
+    build: .
+    command: python3 manage.py runserver 0.0.0.0:8000
+    ports:
+      - 8000:8000
+    environment:
+      - DEBUG=1
+      - SECRET_KEY=jsoaq5(^f**8lxa@p%y9p8u8!7l5%_$l_@xgo4t&wyx)zldsc)
+      - DJANGO_ALLOWED_HOSTS=*
+      - DJANGO_SUPERUSER_USERNAME=admin
+      - DJANGO_SUPERUSER_EMAIL=
+      - DJANGO_SUPERUSER_PASSWORD=Passw0rd!
+    volumes:
+      - ./Files:/webhashcat/Files
+    depends_on:
+      - redis
+      - db
+  db:
+    image: mysql:5.7
+    ports:
+      - '3306:3306'
+    environment:
+       MYSQL_DATABASE: 'webhashcat'
+       MYSQL_USER: 'webhashcat'
+       MYSQL_PASSWORD: 'webhashcat_password'
+       MYSQL_ROOT_PASSWORD: 'root_password'
+  redis:
+    image: redis:alpine
+    ports:
+      - '6379:6379'
+  celery:
+    build: .
+    command: celery -A WebHashcat worker -l info
+    environment:
+      - DEBUG=1
+      - SECRET_KEY=jsoaq5(^f**8lxa@p%y9p8u8!7l5%_$l_@xgo4t&wyx)zldsc)
+      - DJANGO_ALLOWED_HOSTS=*
+    volumes:
+      - ./Files:/webhashcat/Files
+    depends_on:
+      - redis
+      - db
+  celery-beat:
+    build: .
+    command: celery -A WebHashcat beat -l info
+    environment:
+      - DEBUG=1
+      - SECRET_KEY=jsoaq5(^f**8lxa@p%y9p8u8!7l5%_$l_@xgo4t&wyx)zldsc)
+      - DJANGO_ALLOWED_HOSTS=*
+    volumes:
+      - ./Files:/webhashcat/Files
+    depends_on:
+      - redis
+      - db

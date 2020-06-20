@@ -58,6 +58,8 @@ def hashfiles(request):
             hashfile_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".hashfile"
             hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile_name)
 
+            print(hashfile_path)
+
             hashes = request.POST["hashes"]
             f = open(hashfile_path, 'w')
             if len(hashes) == 0 and "hashfile" in request.FILES:

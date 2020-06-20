@@ -35,7 +35,8 @@ class Echo:
         return value
 
 
-REDIS_CLIENT = redis.Redis()
+from WebHashcat.settings import CELERY_BROKER_URL
+REDIS_CLIENT = redis.Redis.from_url(CELERY_BROKER_URL)
 
 def only_one(function=None, key="", timeout=None):
     """Enforce only one celery task at a time."""

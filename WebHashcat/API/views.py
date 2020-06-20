@@ -106,7 +106,7 @@ def api_statistics(request):
         data.append(["<b>Cracked</b>", "%s (%.2f%%)" % (humanize.intcomma(count_cracked), 0)])
     else:
         data.append(["<b>Lines</b>", humanize.intcomma(count_lines)])
-        data.append(["<b>Cracked</b>", "%s (%.2f%%)" % (humanize.intcomma(count_cracked), count_cracked/count_lines*100.0)])
+        data.append(["<b>Cracked</b>", "%s (%.2f%%)" % (humanize.intcomma(count_cracked), count_cracked/count_lines*100.0 if count_lines != 0 else 0.0)])
     data.append(["<b>Hashfiles</b>", Hashfile.objects.count()])
     data.append(["<b>Nodes</b>", Node.objects.count()])
 
@@ -133,8 +133,8 @@ def api_cracked_ratio(request):
         ]
     else:
         result = [
-            ["Cracked", count_cracked/count_lines*100.0],
-            ["Uncracked", (1-count_cracked/count_lines)*100.0],
+            ["Cracked", count_cracked/count_lines*100.0 if count_lines != 0 else 0.0],
+            ["Uncracked", (1-count_cracked/count_lines)*100.0 if count_lines != 0 else 0.0],
         ]
 
     return HttpResponse(json.dumps(result), content_type="application/json")
