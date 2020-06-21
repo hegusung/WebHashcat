@@ -139,13 +139,20 @@ def run_search_task(search_id):
         if "ignore_uncracked" in search_info:
             query += "password IS NOT NULL"
 
-
         tmpfile_name = ''.join([random.choice(string.ascii_lowercase) for i in range(16)])
         tmp_file = os.path.join(os.path.dirname(__file__), "..", "Files", "tmp", tmpfile_name)
-        query += " INTO OUTFILE %s FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' LINES TERMINATED BY '\\n'"
-        args.append(tmp_file)
+        f = open(tmp_file, "w")
+        csv_writer = csv.writer(f)
 
+        # We remove this so we don't need specific rights in mysql (maybe do a test ?)
+        #query += " INTO OUTFILE %s FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' LINES TERMINATED BY '\\n'"
+        #args.append(tmp_file)
+        
         rows = cursor.execute(query, args)
+        
+        for row in cursor.fetchall():
+            csv_writer.writerow(row)
+        f.close()
         cursor.close()
 
         if os.path.exists(tmp_file):
@@ -156,6 +163,7 @@ def run_search_task(search_id):
 
             with open(search.output_file, 'w', newline='') as out_csvfile:
                 spamwriter = csv.writer(out_csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+                spamwriter.writerow(["Hashfile", "Username", "Password", "Hash format", "Hash"])
                 with open(tmp_file, 'r', newline='') as csvfile:
                     spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
                     for row in spamreader:
@@ -184,6 +192,13 @@ def run_search_task(search_id):
 
     except Exception as e:
         traceback.print_exc()
+
+        end_time = time.time()
+
+        search.status = "Error"
+        search.output_lines = 0
+        search.processing_time = int(end_time - start_time)
+        search.save()
     finally:
         task.delete()
 

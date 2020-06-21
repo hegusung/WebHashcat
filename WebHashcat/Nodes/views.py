@@ -6,6 +6,7 @@ import os.path
 import tempfile
 import humanize
 import time
+import requests
 from collections import OrderedDict
 
 from django.shortcuts import render
@@ -32,10 +33,13 @@ from Utils.hashcat import Hashcat
 # Create your views here.
 
 @login_required
-def nodes(request):
+def nodes(request, error_msg=""):
 
     context = {}
     context["Section"] = "Nodes"
+
+    if len(error_msg) != 0:
+        context["error_message"] = error_msg
 
     context["node_list"] = Node.objects.all()
 
@@ -88,11 +92,14 @@ def node(request, node_name, error_msg=""):
                 elif node_data["wordlists"][wordlist["name"]]["md5"] != wordlist["md5"]:
                     hashcat_api.upload_wordlist(wordlist["name"], open(wordlist["path"], 'rb').read())
 
-    hashcat_api = HashcatAPI(node_item.hostname, node_item.port, node_item.username, node_item.password)
-    node_data = hashcat_api.get_hashcat_info()
+    try:
+        hashcat_api = HashcatAPI(node_item.hostname, node_item.port, node_item.username, node_item.password)
+        node_data = hashcat_api.get_hashcat_info()
 
-    if node_data["response"] == "error":
-        return node(request, node_name, error_msg=node_data["message"])
+        if node_data["response"] == "error":
+            return node(request, node_name, error_msg=node_data["message"])
+    except requests.exceptions.ConnectionError:
+        return nodes(request, error_msg="Unable to connect to node %s at: %s:%d" % (node_item.name, node_item.hostname, node_item.port))
 
     rule_list = Hashcat.get_rules()
     mask_list = Hashcat.get_masks()

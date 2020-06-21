@@ -9,6 +9,7 @@ import humanize
 import time
 import traceback
 import datetime
+import requests
 from collections import OrderedDict
 
 from django.shortcuts import render
@@ -70,6 +71,12 @@ def api_node_status(request):
                 status,
             ])
         except ConnectionRefusedError:
+            data.append([
+                node.name,
+                "",
+                "Error",
+            ])
+        except requests.exceptions.ConnectionError:
             data.append([
                 node.name,
                 "",
@@ -159,7 +166,7 @@ def api_running_sessions(request):
             hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
             session_info = hashcat_api.get_session_info(session.name)
 
-            if session_info["status"] == "Running":
+            if session_info['response'] != 'error' and session_info["status"] == "Running":
                 if session_info["crack_type"] == "dictionary":
                     rule_mask = session_info["rule"]
                     wordlist = session_info["wordlist"]
@@ -203,7 +210,7 @@ def api_error_sessions(request):
             hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
             session_info = hashcat_api.get_session_info(session.name)
 
-            if not session_info["status"] in ["Not started", "Running", "Paused", "Done"]:
+            if session_info['response'] != 'error' and not session_info["status"] in ["Not started", "Running", "Paused", "Done"]:
                 if session_info["crack_type"] == "dictionary":
                     rule_mask = session_info["rule"]
                     wordlist = session_info["wordlist"]
@@ -220,6 +227,17 @@ def api_error_sessions(request):
                     "status": session_info["status"],
                     "reason": session_info["reason"],
                 })
+            elif session_info['response'] == 'error':
+                data.append({
+                    "hashfile": session.hashfile.name,
+                    "node": node.name,
+                    "type": "",
+                    "rule_mask": "",
+                    "wordlist": "",
+                    "status": "Inexistant session on node",
+                    "reason": "",
+                })
+
         except ConnectionRefusedError:
             pass
 
@@ -250,6 +268,8 @@ def api_hashfiles(request):
             for session in hashcat_info["sessions"]:
                 session_status[session["name"]] = session["status"]
         except ConnectionRefusedError:
+            pass
+        except requests.exceptions.ConnectTimeout:
             pass
 
     sort_index = ["name", "name", "hash_type", "line_count", "cracked_count", "name", "name", "name"][int(params["order[0][column]"])]
@@ -610,7 +630,7 @@ def api_search_list(request):
         buttons = ""
         if os.path.exists(search.output_file):
             buttons = "<a href='%s'><button title='Export search results' class='btn btn-info btn-xs' ><span class='glyphicon glyphicon-download-alt'></span></button></a>" % reverse('Hashcat:export_search', args=(search.id,))
-        if search.status in ["Done", "Aborted"]:
+        if search.status in ["Done", "Aborted", "Error"]:
             buttons += "<button title='Restart search' style='margin-left: 5px' type='button' class='btn btn-primary btn-xs' onClick='search_action(%d, \"%s\")'><span class='glyphicon glyphicon-refresh'></span></button>" % (search.id, "reload")
             buttons += "<button title='Remove search' style='margin-left: 5px' type='button' class='btn btn-danger btn-xs' onClick='search_action(%d, \"%s\")'><span class='glyphicon glyphicon-remove'></span></button>" % (search.id, "remove")
 

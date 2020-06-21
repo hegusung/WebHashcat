@@ -39,6 +39,7 @@ RUN mkdir /webhashcat/Files/Hashfiles
 RUN mkdir /webhashcat/Files/Maskfiles
 RUN mkdir /webhashcat/Files/Rulefiles
 RUN mkdir /webhashcat/Files/Wordlistfiles
+RUN mkdir /webhashcat/Files/Searches
 RUN mkdir /webhashcat/Files/tmp
 RUN chmod 777 /webhashcat/Files/tmp
 

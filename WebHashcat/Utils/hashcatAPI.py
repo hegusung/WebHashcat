@@ -12,6 +12,8 @@ import os
 from django.db import transaction
 from Utils.models import Lock
 
+TIMEOUT = 1
+
 class HashcatAPI(object):
 
     def __init__(self, ip, port, username, password):
@@ -151,9 +153,9 @@ class HashcatAPI(object):
 
         url = "https://%s:%d%s" % (self.ip, self.port, url)
         if data == None:
-            res = requests.get(url, headers=headers, verify=False)
+            res = requests.get(url, headers=headers, verify=False, timeout=TIMEOUT)
         else:
-            res = requests.post(url, json.dumps(data), headers=headers, verify=False)
+            res = requests.post(url, json.dumps(data), headers=headers, verify=False, timeout=TIMEOUT)
 
         #data = res.read()
         data = res.text
