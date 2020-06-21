@@ -12,7 +12,9 @@ import os
 from django.db import transaction
 from Utils.models import Lock
 
-TIMEOUT = 1
+timeout_connection = 1
+timeout_read = 60*10
+TIMEOUT = (timeout_connection, timeout_read)
 
 class HashcatAPI(object):
 
