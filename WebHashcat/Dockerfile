@@ -25,7 +25,6 @@ COPY ./Hashcat /webhashcat/Hashcat
 COPY ./Nodes /webhashcat/Nodes
 COPY ./Utils /webhashcat/Utils
 COPY ./WebHashcat /webhashcat/WebHashcat
-RUN rm /webhashcat/WebHashcat/settings.py
 COPY ./static /webhashcat/static
 COPY ./manage.py /webhashcat/manage.py
 COPY ./settings.ini.docker /webhashcat/settings.ini.docker
