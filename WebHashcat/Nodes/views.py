@@ -29,6 +29,7 @@ from .models import Node
 
 from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
+from Utils.tasks import synchronize_node_task
 
 # Create your views here.
 
@@ -67,6 +68,9 @@ def node(request, node_name, error_msg=""):
     if request.method == 'POST':
         if request.POST["action"] == "synchronize":
 
+            synchronize_node_task.delay(node_name)
+
+            """
             hashcat_api = HashcatAPI(node_item.hostname, node_item.port, node_item.username, node_item.password)
             node_data = hashcat_api.get_hashcat_info()
 
@@ -91,6 +95,7 @@ def node(request, node_name, error_msg=""):
                     hashcat_api.upload_wordlist(wordlist["name"], open(wordlist["path"], 'rb').read())
                 elif node_data["wordlists"][wordlist["name"]]["md5"] != wordlist["md5"]:
                     hashcat_api.upload_wordlist(wordlist["name"], open(wordlist["path"], 'rb').read())
+            """
 
     try:
         hashcat_api = HashcatAPI(node_item.hostname, node_item.port, node_item.username, node_item.password)

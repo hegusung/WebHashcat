@@ -43,3 +43,21 @@ class Search(models.Model):
     output_file = models.TextField()
     processing_time = models.IntegerField(null=True)
     json_search_info = models.TextField()
+
+class Wordlist(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    file_hash = models.CharField(max_length=50)
+    path = models.CharField(max_length=255)
+    lines = models.IntegerField()
+
+class Rule(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    file_hash = models.CharField(max_length=50)
+    path = models.CharField(max_length=255)
+    lines = models.IntegerField()
+
+class Mask(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    file_hash = models.CharField(max_length=50)
+    path = models.CharField(max_length=255)
+    lines = models.IntegerField()

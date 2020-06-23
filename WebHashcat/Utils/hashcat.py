@@ -12,6 +12,7 @@ import threading
 import tempfile
 import traceback
 import humanize
+import requests
 from shutil import copyfile
 from os import listdir
 from os.path import isfile, join
@@ -25,8 +26,9 @@ from django.db.utils import OperationalError
 
 from Utils.models import Lock
 from Hashcat.models import Session, Hashfile, Hash
+from Hashcat.models import Wordlist, Rule, Mask
 from Utils.hashcatAPI import HashcatAPI
-from Utils.utils import del_hashfile_locks
+from Utils.utils import del_hashfile_locks, calculate_md5
 
 class ClassProperty(property):
     def __get__(self, cls, owner):
@@ -401,7 +403,17 @@ class Hashcat(object):
 
     @classmethod
     def get_rules(self, detailed=True):
+        res = []
 
+        for rule in Rule.objects.all():
+            info = {
+                "name": rule.name,
+                "md5": rule.file_hash,
+                "path": rule.path,
+            }
+            res.append(info)
+
+        """
         res = []
         if not detailed:
             path = os.path.join(os.path.dirname(__file__), "..", "Files", "Rulefiles")
@@ -419,12 +431,23 @@ class Hashcat(object):
                         "md5": items[0],
                         "path": items[1],
                         })
+        """
 
         return sorted(res, key=itemgetter('name'))
 
     @classmethod
     def get_masks(self, detailed=True):
+        res = []
 
+        for mask in Mask.objects.all():
+            info = {
+                "name": mask.name,
+                "md5": mask.file_hash,
+                "path": mask.path,
+            }
+            res.append(info)
+
+        """
         res = []
         if not detailed:
             path = os.path.join(os.path.dirname(__file__), "..", "Files", "Maskfiles")
@@ -442,12 +465,24 @@ class Hashcat(object):
                         "md5": items[0],
                         "path": items[1],
                         })
+        """
 
         return sorted(res, key=itemgetter('name'))
 
     @classmethod
     def get_wordlists(self, detailed=True):
+        res = []
 
+        for wordlist in Wordlist.objects.all():
+            info = {
+                "name": wordlist.name,
+                "md5": wordlist.file_hash,
+                "path": wordlist.path,
+            }
+            info["lines"] = humanize.intcomma(wordlist.lines)
+            res.append(info)
+
+        """
         res = []
         if not detailed:
             path = os.path.join(os.path.dirname(__file__), "..", "Files", "Wordlistfiles")
@@ -473,42 +508,48 @@ class Hashcat(object):
                         print("Unicode decode error in file %s" % items[1])
                         info["lines"] = "error"
                     res.append(info)
-
+        """
 
         return sorted(res, key=itemgetter('name'))
 
     @classmethod
-    def upload_rule(self, name, file):
-        if not name.endswith(".rule"):
-            name = "%s.rule" % name
-        name = name.replace(" ", "_")
+    def upload_rule(self, name, path):
+        lines = sum(1 for _ in open(path, errors="backslashreplace"))
+        file_md5 = calculate_md5(path)
 
-        path = os.path.join(os.path.dirname(__file__), "..", "Files", "Rulefiles", name)
-
-        with open(path, "wb") as f:
-            f.write(file)
-
-    @classmethod
-    def upload_mask(self, name, file):
-        if not name.endswith(".hcmask"):
-            name = "%s.hcmask" % name
-        name = name.replace(" ", "_")
-
-        path = os.path.join(os.path.dirname(__file__), "..", "Files", "Maskfiles", name)
-
-        with open(path, "wb") as f:
-            f.write(file)
+        rule = Rule(
+            name=name,
+            path=path,
+            file_hash=file_md5,
+            lines=lines,
+        )
+        rule.save()
 
     @classmethod
-    def upload_wordlist(self, name, file):
-        if not name.endswith(".wordlist"):
-            name = "%s.wordlist" % name
-        name = name.replace(" ", "_")
+    def upload_mask(self, name, path):
+        lines = sum(1 for _ in open(path, errors="backslashreplace"))
+        file_md5 = calculate_md5(path)
 
-        path = os.path.join(os.path.dirname(__file__), "..", "Files", "Wordlistfiles", name)
+        mask = Mask(
+            name=name,
+            path=path,
+            file_hash=file_md5,
+            lines=lines,
+        )
+        mask.save()
 
-        with open(path, "wb") as f:
-            f.write(file)
+    @classmethod
+    def upload_wordlist(self, name, path):
+        lines = sum(1 for _ in open(path, errors="backslashreplace"))
+        file_md5 = calculate_md5(path)
+
+        wordlist = Wordlist(
+            name=name,
+            path=path,
+            file_hash=file_md5,
+            lines=lines,
+        )
+        wordlist.save()
 
     @classmethod
     def remove_rule(self, name):
@@ -520,6 +561,8 @@ class Hashcat(object):
         except Exception as e:
             pass
 
+        Rule.objects.get(name=name).delete()
+
     @classmethod
     def remove_mask(self, name):
         name = name.split("/")[-1]
@@ -530,6 +573,8 @@ class Hashcat(object):
         except Exception as e:
             pass
 
+        Mask.objects.get(name=name).delete()
+
     @classmethod
     def remove_wordlist(self, name):
         name = name.split("/")[-1]
@@ -539,6 +584,8 @@ class Hashcat(object):
             os.remove(path)
         except Exception as e:
             pass
+
+        Wordlist.objects.get(name=name).delete()
 
     @classmethod
     def update_hashfiles(self):
@@ -574,7 +621,15 @@ class Hashcat(object):
 
                         remaining = True
                         while(remaining):
-                            potfile_data = hashcat_api.get_potfile(session.name, session.potfile_line_retrieved)
+                            try:
+                                potfile_data = hashcat_api.get_potfile(session.name, session.potfile_line_retrieved)
+                            except requests.exceptions.ConnectTimeout:
+                                print('Timeout connection to %s' % session.name)
+                                break
+                            except requests.exceptions.ConnectionError:
+                                print('Connection error to %s' % session.name)
+                                break
+
                             if potfile_data["response"] == "ok" and potfile_data["line_count"] > 0:
                                 f = open(self.get_potfile(), "a", encoding='utf-8')
                                 f.write(potfile_data["potfile_data"])

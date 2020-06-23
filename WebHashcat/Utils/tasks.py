@@ -19,6 +19,8 @@ from celery.signals import celeryd_after_setup
 from django.db import connection
 
 from Hashcat.models import Session, Hashfile, Hash, Search
+from Nodes.models import Node
+from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
 from Utils.models import Task
 from Utils.utils import only_one
@@ -201,6 +203,45 @@ def run_search_task(search_id):
         search.save()
     finally:
         task.delete()
+
+@app.task(name="synchronize_node_task")
+def synchronize_node_task(node_name):
+
+    node_item = Node.objects.get(name=node_name)
+
+    task = Task(
+        time = datetime.datetime.now(),
+        message = "Synchronizing with node %s..." % node_name
+    )
+    task.save()
+
+    hashcat_api = HashcatAPI(node_item.hostname, node_item.port, node_item.username, node_item.password)
+    print("get hashcat info")
+    node_data = hashcat_api.get_hashcat_info()
+
+    rule_list = Hashcat.get_rules()
+    mask_list = Hashcat.get_masks()
+    wordlist_list = Hashcat.get_wordlists()
+
+    for rule in rule_list:
+        if not rule["name"] in node_data["rules"]:
+            hashcat_api.upload_rule(rule["name"], open(rule["path"], 'rb').read())
+        elif node_data["rules"][rule["name"]]["md5"] != rule["md5"]:
+            hashcat_api.upload_rule(rule["name"], open(rule["path"], 'rb').read())
+
+    for mask in mask_list:
+        if not mask["name"] in node_data["masks"]:
+            hashcat_api.upload_mask(mask["name"], open(mask["path"], 'rb').read())
+        elif node_data["masks"][mask["name"]]["md5"] != mask["md5"]:
+            hashcat_api.upload_mask(mask["name"], open(mask["path"], 'rb').read())
+
+    for wordlist in wordlist_list:
+        if not wordlist["name"] in node_data["wordlists"]:
+            hashcat_api.upload_wordlist(wordlist["name"], open(wordlist["path"], 'rb').read())
+        elif node_data["wordlists"][wordlist["name"]]["md5"] != wordlist["md5"]:
+            hashcat_api.upload_wordlist(wordlist["name"], open(wordlist["path"], 'rb').read())
+        
+    task.delete()
 
 @periodic_task(
     run_every=(crontab(minute='*')), # Changed to */1 for debug, original */5

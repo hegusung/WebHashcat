@@ -5,6 +5,7 @@ import argparse
 import requests
 from urllib.parse import urljoin
 from requests.auth import HTTPBasicAuth
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 def main():
     parser = argparse.ArgumentParser(description='Upload file to WebHashcat', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -41,7 +42,14 @@ def main():
         values={'name' : name, 'type': 'hashfile', 'hash_type': args.hashtype}
         if args.username_included:
             values['username_included'] = True
-        files={'file': open(args.hashfile, 'rb')}
+        values['file'] = (os.path.basename(args.hashfile), open(args.hashfile, 'rb'), 'text/plain')
+        m = MultipartEncoder(fields=values)
+        #files={'file': open(args.hashfile, 'rb')}
+        try:
+            res = requests.post(urljoin(args.url, '/api/upload_file'), auth=HTTPBasicAuth(args.username, args.password), data=m, headers={'Content-Type': m.content_type})
+            print(res.text)
+        except MemoryError:
+            print("File too big to fit in memory")
     elif args.rule != None:
         for rule in args.rule:
             if not os.path.exists(rule):
@@ -53,8 +61,11 @@ def main():
             files={'file': open(rule, 'rb')}
 
             print("Uploading %s" % os.path.basename(rule))
-            res = requests.post(urljoin(args.url, '/api/upload_file'), auth=HTTPBasicAuth(args.username, args.password), files=files, data=values)
-            print(res.text)
+            try:
+                res = requests.post(urljoin(args.url, '/api/upload_file'), auth=HTTPBasicAuth(args.username, args.password), files=files, data=values)
+                print(res.text)
+            except MemoryError:
+                print("File too big to fit in memory")
     elif args.mask != None:
         for mask in args.mask:
             if not os.path.exists(mask):
@@ -66,8 +77,11 @@ def main():
             files={'file': open(mask, 'rb')}
 
             print("Uploading %s" % os.path.basename(mask))
-            res = requests.post(urljoin(args.url, '/api/upload_file'), auth=HTTPBasicAuth(args.username, args.password), files=files, data=values)
-            print(res.text)
+            try:
+                res = requests.post(urljoin(args.url, '/api/upload_file'), auth=HTTPBasicAuth(args.username, args.password), files=files, data=values)
+                print(res.text)
+            except MemoryError:
+                print("File too big to fit in memory")
     elif args.wordlist != None:
         for wordlist in args.wordlist:
             if not os.path.exists(wordlist):
@@ -76,11 +90,16 @@ def main():
             if args.name == None:
                 name = os.path.basename(wordlist)
             values={'name' : name, 'type': 'wordlist'}
-            files={'file': open(wordlist, 'rb')}
+            #files={'file': open(wordlist, 'rb')}
+            values['file'] = (os.path.basename(wordlist), open(wordlist, 'rb'), 'text/plain')
+            m = MultipartEncoder(fields=values)
 
             print("Uploading %s" % os.path.basename(wordlist))
-            res = requests.post(urljoin(args.url, '/api/upload_file'), auth=HTTPBasicAuth(args.username, args.password), files=files, data=values)
-            print(res.text)
+            try:
+                res = requests.post(urljoin(args.url, '/api/upload_file'), auth=HTTPBasicAuth(args.username, args.password), data=m, headers={'Content-Type': m.content_type})
+                print(res.text)
+            except MemoryError:
+                print("File too big to fit in memory")
     else:
         print("Please specify a file to upload")
 

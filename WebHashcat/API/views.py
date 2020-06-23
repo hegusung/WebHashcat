@@ -190,6 +190,8 @@ def api_running_sessions(request):
                 })
         except ConnectionRefusedError:
             pass
+        except requests.exceptions.ConnectTimeout:
+            pass
 
     result["data"] = data
 
@@ -243,6 +245,8 @@ def api_error_sessions(request):
                 })
 
         except ConnectionRefusedError:
+            pass
+        except requests.exceptions.ConnectTimeout:
             pass
 
     result["data"] = data
@@ -732,19 +736,45 @@ def api_upload_file(request):
         # Update the new file with the potfile, this may take a while, but it is processed in a background task
         import_hashfile_task.delay(hashfile.id)
     elif params['type'] == 'wordlist':
-            f = request.FILES["file"]
-            wordlist_file = f.read()
+            name = params['name']
+            if not name.endswith(".wordlist"):
+                name = "%s.wordlist" % name
+            name = name.replace(" ", "_")
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Wordlistfiles", name)
 
-            Hashcat.upload_wordlist(params['name'], wordlist_file)
+            f = open(path, 'w')
+            for chunk in request.FILES['file'].chunks():
+                f.write(chunk.decode('UTF-8', 'backslashreplace'))
+            f.close()
+
+            Hashcat.upload_wordlist(name, path)
     elif params['type'] == 'rule':
-            f = request.FILES["file"]
-            rule_file = f.read()
+            name = params['name']
+            if not name.endswith(".rule"):
+                name = "%s.rule" % name
+            name = name.replace(" ", "_")
 
-            Hashcat.upload_rule(params['name'], rule_file)
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Rulefiles", name)
+
+            f = open(path, 'w')
+            for chunk in request.FILES['file'].chunks():
+                f.write(chunk.decode('UTF-8', 'backslashreplace'))
+            f.close()
+
+            Hashcat.upload_rule(name, path)
     elif params['type'] == 'mask':
-            f = request.FILES["file"]
-            mask_file = f.read()
+            name = params['name']
+            if not name.endswith(".hcmask"):
+                name = "%s.hcmask" % name
+            name = name.replace(" ", "_")
 
-            Hashcat.upload_mask(params['name'], mask_file)
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Maskfiles", name)
+
+            f = open(path, 'w')
+            for chunk in request.FILES['file'].chunks():
+                f.write(chunk.decode('UTF-8', 'backslashreplace'))
+            f.close()
+
+            Hashcat.upload_mask(name, path)
 
     return HttpResponse(json.dumps({"result": "success"}), content_type="application/json")

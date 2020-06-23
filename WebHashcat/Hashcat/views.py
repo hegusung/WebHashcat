@@ -212,10 +212,18 @@ def upload_rule(request):
 
         if "file" in request.FILES:
             # get from file
-            f = request.FILES["file"]
-            rule_file = f.read()
+            if not name.endswith(".rule"):
+                name = "%s.rule" % name
+            name = name.replace(" ", "_")
 
-            Hashcat.upload_rule(name, rule_file)
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Rulefiles", name)
+
+            f = open(path, 'w')
+            for chunk in request.FILES['file'].chunks():
+                f.write(chunk.decode('UTF-8', 'backslashreplace'))
+            f.close()
+
+            Hashcat.upload_rule(name, path)
 
     return redirect('Hashcat:files')
 
@@ -226,10 +234,18 @@ def upload_mask(request):
 
         if "file" in request.FILES:
             # get from file
-            f = request.FILES["file"]
-            mask_file = f.read()
+            if not name.endswith(".hcmask"):
+                name = "%s.hcmask" % name
+            name = name.replace(" ", "_")
 
-            Hashcat.upload_mask(name, mask_file)
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Maskfiles", name)
+
+            f = open(path, 'w')
+            for chunk in request.FILES['file'].chunks():
+                f.write(chunk.decode('UTF-8', 'backslashreplace'))
+            f.close()
+
+            Hashcat.upload_mask(name, path)
 
 
     return redirect('Hashcat:files')
@@ -241,10 +257,17 @@ def upload_wordlist(request):
 
         if "file" in request.FILES:
             # get from file
-            f = request.FILES["file"]
-            wordlist_file = f.read()
+            if not name.endswith(".wordlist"):
+                name = "%s.wordlist" % name
+            name = name.replace(" ", "_")
+            path = os.path.join(os.path.dirname(__file__), "..", "Files", "Wordlistfiles", name)
 
-            Hashcat.upload_wordlist(name, wordlist_file)
+            f = open(path, 'w')
+            for chunk in request.FILES['file'].chunks():
+                f.write(chunk.decode('UTF-8', 'backslashreplace'))
+            f.close()
+
+            Hashcat.upload_wordlist(name, path)
 
     return redirect('Hashcat:files')
 

@@ -1,5 +1,6 @@
 import functools
 import redis
+import hashlib
 from django.db import transaction
 from .models import Lock
 
@@ -25,6 +26,16 @@ def del_hashfile_locks(hashfile):
         for lock in Lock.objects.select_for_update().filter(hashfile_id=hashfile.id):
             lock.delete()
 
+def calculate_md5(hashfile):
+    file_hash = hashlib.md5()
+    with open(hashfile, "rb") as f:
+        while True:
+            chunk = f.read(8192)
+            if not chunk:
+                break
+            file_hash.update(chunk)
+
+    return file_hash.hexdigest()
 
 class Echo:
     """An object that implements just the write method of the file-like
