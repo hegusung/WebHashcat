@@ -10,6 +10,7 @@ import time
 import traceback
 import datetime
 import requests
+import base64
 from collections import OrderedDict
 
 from django.shortcuts import render
@@ -24,11 +25,13 @@ from django.db.models.functions import Cast
 from django.db import connection
 from django.contrib import messages
 from django.db.models import Sum
+from django.views.decorators.csrf import csrf_exempt
 
 from django.shortcuts import get_object_or_404
 
 from operator import itemgetter
 
+from django.contrib.auth.models import User
 from Hashcat.models import Hashfile, Session, Hash, Search
 from Nodes.models import Node
 from Utils.models import Task
@@ -37,7 +40,8 @@ from Utils.hashcatAPI import HashcatAPI
 from Utils.hashcat import Hashcat
 from Utils.utils import del_hashfile_locks, Echo
 from Utils.tasks import remove_hashfile_task
-from Utils.tasks import run_search_task
+from Utils.utils import init_hashfile_locks
+from Utils.tasks import import_hashfile_task, run_search_task
 # Create your views here.
 
 @login_required
@@ -665,5 +669,82 @@ def api_search_action(request):
         search.delete()
     elif params["action"] == "reload":
         run_search_task.delay(search.id)
+
+    return HttpResponse(json.dumps({"result": "success"}), content_type="application/json")
+
+@csrf_exempt
+def api_upload_file(request):
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    token_type, _, credentials = auth_header.partition(' ')
+
+    username, password = base64.b64decode(credentials).decode().split(':')
+
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        return HttpResponse(status=401)
+    
+    password_valid = user.check_password(password)
+    if token_type != 'Basic' or not password_valid:
+        return HttpResponse(status=401)
+
+    if request.method == "POST":
+        params = request.POST
+    else:
+        return HttpResponse(json.dumps({"result": "error", "value": "Only POST accepted"}), content_type="application/json")
+
+    if not 'name' in params:
+        return HttpResponse(json.dumps({"result": "error", "value": "Please specify the uploaded file name"}), content_type="application/json")
+    if not 'type' in params:
+        return HttpResponse(json.dumps({"result": "error", "value": "Please specify the uploaded file type"}), content_type="application/json")
+    if not 'file' in request.FILES:
+        return HttpResponse(json.dumps({"result": "error", "value": "Please upload a file"}), content_type="application/json")
+
+    print(params)
+
+    if params['type'] == 'hashfile':
+        if not 'hash_type' in params:
+            return HttpResponse(json.dumps({"result": "error", "value": "Please specify the hash type"}), content_type="application/json")
+
+        hash_type=int(params["hash_type"])
+
+        hashfile_name = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".hashfile"
+        hashfile_path = os.path.join(os.path.dirname(__file__), "..", "Files", "Hashfiles", hashfile_name)
+
+        f = open(hashfile_path, 'w')
+        for chunk in request.FILES['file'].chunks():
+            f.write(chunk.decode('UTF-8', 'backslashreplace'))
+        f.close()
+
+        username_included = "username_included" in params
+
+        hashfile = Hashfile(
+            name=request.POST['name'],
+            hashfile=hashfile_name,
+            hash_type=hash_type,
+            line_count=0,
+            cracked_count = 0,
+            username_included=username_included,
+        )
+        hashfile.save()
+        init_hashfile_locks(hashfile)
+
+        # Update the new file with the potfile, this may take a while, but it is processed in a background task
+        import_hashfile_task.delay(hashfile.id)
+    elif params['type'] == 'wordlist':
+            f = request.FILES["file"]
+            wordlist_file = f.read()
+
+            Hashcat.upload_wordlist(params['name'], wordlist_file)
+    elif params['type'] == 'rule':
+            f = request.FILES["file"]
+            rule_file = f.read()
+
+            Hashcat.upload_rule(params['name'], rule_file)
+    elif params['type'] == 'mask':
+            f = request.FILES["file"]
+            mask_file = f.read()
+
+            Hashcat.upload_mask(params['name'], mask_file)
 
     return HttpResponse(json.dumps({"result": "success"}), content_type="application/json")

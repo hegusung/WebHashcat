@@ -20,5 +20,7 @@ urlpatterns = [
         url(r'^get_messages$', views.api_get_messages, name='api_get_messages'),
         url(r'^search_list$', views.api_search_list, name='api_search_list'),
         url(r'^search_action$', views.api_search_action, name='api_search_action'),
+        # Uses basic authentication
+        url(r'^upload_file$', views.api_upload_file, name='api_upload_file'),
 ]
 
