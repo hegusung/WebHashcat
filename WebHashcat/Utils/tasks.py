@@ -225,21 +225,21 @@ def synchronize_node_task(node_name):
 
     for rule in rule_list:
         if not rule["name"] in node_data["rules"]:
-            hashcat_api.upload_rule(rule["name"], open(rule["path"], 'rb').read())
+            hashcat_api.upload_rule(rule["name"], rule["path"])
         elif node_data["rules"][rule["name"]]["md5"] != rule["md5"]:
-            hashcat_api.upload_rule(rule["name"], open(rule["path"], 'rb').read())
+            hashcat_api.upload_rule(rule["name"], rule["path"])
 
     for mask in mask_list:
         if not mask["name"] in node_data["masks"]:
-            hashcat_api.upload_mask(mask["name"], open(mask["path"], 'rb').read())
+            hashcat_api.upload_mask(mask["name"], mask["path"])
         elif node_data["masks"][mask["name"]]["md5"] != mask["md5"]:
-            hashcat_api.upload_mask(mask["name"], open(mask["path"], 'rb').read())
+            hashcat_api.upload_mask(mask["name"], mask["path"])
 
     for wordlist in wordlist_list:
         if not wordlist["name"] in node_data["wordlists"]:
-            hashcat_api.upload_wordlist(wordlist["name"], open(wordlist["path"], 'rb').read())
+            hashcat_api.upload_wordlist(wordlist["name"], wordlist["path"])
         elif node_data["wordlists"][wordlist["name"]]["md5"] != wordlist["md5"]:
-            hashcat_api.upload_wordlist(wordlist["name"], open(wordlist["path"], 'rb').read())
+            hashcat_api.upload_wordlist(wordlist["name"], wordlist["path"])
         
     task.delete()
 

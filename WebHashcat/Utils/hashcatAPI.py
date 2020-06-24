@@ -110,29 +110,26 @@ class HashcatAPI(object):
     def get_potfile(self, session_name, from_line):
         return self.send("/getPotfile/%s/%d" % (session_name, from_line))
 
-    def upload_rule(self, name, rule_file):
+    def upload_rule(self, name, path):
         payload = {
             "name": name,
-            "rules": base64.b64encode(rule_file).decode(),
         }
 
-        return self.send("/uploadRule", data=payload)
+        return self.post_file("/uploadRule", payload, path)
 
-    def upload_mask(self, name, mask_file):
+    def upload_mask(self, name, path):
         payload = {
             "name": name,
-            "masks": base64.b64encode(mask_file).decode(),
         }
 
-        return self.send("/uploadMask", data=payload)
+        return self.post_file("/uploadMask", payload, path)
 
-    def upload_wordlist(self, name, wordlist_file):
+    def upload_wordlist(self, name, path):
         payload = {
             "name": name,
-            "wordlists": base64.b64encode(wordlist_file).decode(),
         }
 
-        return self.send("/uploadWordlist", data=payload)
+        return self.post_file("/uploadWordlist", payload, path)
 
     def send(self, url, data=None):
         headers = {

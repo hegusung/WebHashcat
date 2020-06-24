@@ -330,9 +330,20 @@ class Server:
     @auth.login_required
     def _upload_rule(self):
         try:
-            data = json.loads(request.data.decode())
+            data = json.loads(request.form.get('json'))
+            name = data['name']
 
-            Hashcat.upload_rule(data["name"], base64.b64decode(data["rules"]))
+            name = name.split("/")[-1]
+
+            if not name.endswith(".rule"):
+                name += ".rule"
+
+            path = os.path.join(Hashcat.rules_dir, name)
+
+            file = request.files['file']
+            file.save(path)
+
+            Hashcat.upload_rule(name, path)
 
             res = {"response": "ok"}
 
@@ -354,9 +365,20 @@ class Server:
     @auth.login_required
     def _upload_mask(self):
         try:
-            data = json.loads(request.data.decode())
+            data = json.loads(request.form.get('json'))
+            name = data['name']
 
-            Hashcat.upload_mask(data["name"], base64.b64decode(data["masks"]))
+            name = name.split("/")[-1]
+
+            if not name.endswith(".hcmask"):
+                name += ".hcmask"
+
+            path = os.path.join(Hashcat.mask_dir, name)
+
+            file = request.files['file']
+            file.save(path)
+
+            Hashcat.upload_mask(name, path)
 
             res = {"response": "ok"}
 
@@ -378,9 +400,20 @@ class Server:
     @auth.login_required
     def _upload_wordlist(self):
         try:
-            data = json.loads(request.data.decode())
+            data = json.loads(request.form.get('json'))
+            name = data['name']
 
-            Hashcat.upload_wordlist(data["name"], base64.b64decode(data["wordlists"]))
+            name = name.split("/")[-1]
+
+            if not name.endswith(".wordlist"):
+                name += ".wordlist"
+
+            path = os.path.join(Hashcat.wordlist_dir, name)
+
+            file = request.files['file']
+            file.save(path)
+
+            Hashcat.upload_wordlist(name, path)
 
             res = {"response": "ok"}
 

@@ -298,24 +298,7 @@ class Hashcat(object):
         Upload a new rule file
     """
     @classmethod
-    def upload_rule(self, name, rules):
-
-        name = name.split("/")[-1]
-
-        if not name.endswith(".rule"):
-            name += ".rule"
-
-        path = os.path.join(self.rules_dir, name)
-
-        if name in self.rules:
-            try:
-                os.remove(path)
-            except Exception as e:
-                pass
-
-        f = open(path, "wb")
-        f.write(rules)
-        f.close()
+    def upload_rule(self, name, path):
 
         self.parse_rules()
 
@@ -325,24 +308,7 @@ class Hashcat(object):
         Upload a new mask file
     """
     @classmethod
-    def upload_mask(self, name, masks):
-
-        name = name.split("/")[-1]
-
-        if not name.endswith(".hcmask"):
-            name += ".hcmask"
-
-        path = os.path.join(self.mask_dir, name)
-
-        if name in self.masks:
-            try:
-                os.remove(path)
-            except Exception as e:
-                pass
-
-        f = open(path, "wb")
-        f.write(masks)
-        f.close()
+    def upload_mask(self, name, path):
 
         self.parse_masks()
 
@@ -352,24 +318,7 @@ class Hashcat(object):
         Upload a new wordlist file
     """
     @classmethod
-    def upload_wordlist(self, name, wordlists):
-
-        name = name.split("/")[-1]
-
-        if not name.endswith(".wordlist"):
-            name += ".wordlist"
-
-        path = os.path.join(self.wordlist_dir, name)
-
-        if name in self.wordlists:
-            try:
-                os.remove(path)
-            except Exception as e:
-                pass
-
-        f = open(path, "wb")
-        f.write(wordlists)
-        f.close()
+    def upload_wordlist(self, name, path):
 
         self.parse_wordlists()
 
