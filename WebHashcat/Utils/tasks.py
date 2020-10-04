@@ -1,4 +1,5 @@
 import datetime
+import sys
 import traceback
 import json
 import os
@@ -11,7 +12,7 @@ import time
 from shutil import copyfile
 #from celery import Celery
 from WebHashcat.celery import app
-from celery.task.schedules import crontab
+from celery.schedules import crontab
 from celery.decorators import task
 from celery.decorators import periodic_task
 from celery.utils.log import get_task_logger
@@ -24,6 +25,12 @@ from Utils.models import Task
 from Utils.utils import only_one
 
 logger = get_task_logger(__name__)
+
+@app.on_after_finalize.connect
+def setup_periodic_tasks(sender, **kwargs):
+    sender.add_periodic_task(1*60, update_potfile_task.s())  # Every 5 minutes
+    sender.add_periodic_task(2*60*60, update_cracked_count.s()) # Every 2 Hours
+    sender.add_periodic_task(3*60*60, optimize_potfile.s()) # Every 3 Hours
 
 @celeryd_after_setup.connect
 def cleanup_tasks(sender, instance, **kwargs):
@@ -202,33 +209,18 @@ def run_search_task(search_id):
     finally:
         task.delete()
 
-@periodic_task(
-    run_every=(crontab(minute='*')), # Changed to */1 for debug, original */5
-    name="update_potfile_task",
-    ignore_result=True
-)
-@only_one(key="UpdatePotfile", timeout=6*60*60)
+@app.task(name="update_potfile_task")
 def update_potfile_task():
     Hashcat.update_hashfiles()
 
-@periodic_task(
-    run_every=(crontab(hour=2, minute=0)),
-    name="update_cracked_count",
-    ignore_result=False
-)
-@only_one(key="UpdateCrackedCount", timeout=6*60*60)
+@app.task(name="update_cracked_count")
 def update_cracked_count():
     for hashfile in Hashfile.objects.all():
         if not hashfile.hash_type in [-1,]:
             hashfile.cracked_count = Hash.objects.filter(hashfile_id=hashfile.id, password__isnull=False).count()
             hashfile.save()
 
-@periodic_task(
-    run_every=(crontab(hour=3, minute=0)),
-    name="optimize_potfile",
-    ignore_result=True
-)
-@only_one(key="OptimizePotfile", timeout=6*60*60)
+@app.task(name="optimize_potfile")
 def optimize_potfile():
         Hashcat.optimize_potfile()
 
