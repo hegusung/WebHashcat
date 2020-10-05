@@ -14,3 +14,9 @@ rule_dir = /path/to/hashcatnode/rule/dir
 wordlist_dir = /path/to/hashcatnode/wordlist/dir
 mask_dir = /path/to/hashcatnode/mask/dir
 workload_profile = 3
+
+[Brain]
+enabled = false
+host = 127.0.0.1
+port = 13743
+password = bZfhCvGUSjRq

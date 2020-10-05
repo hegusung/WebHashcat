@@ -197,7 +197,7 @@ class Hashcat(object):
         Create a new session
     """
     @classmethod
-    def create_session(self, name, crack_type, hash_file, hash_mode_id, wordlist, rule, mask, username_included, device_type, end_timestamp, hashcat_debug_file):
+    def create_session(self, name, crack_type, hash_file, hash_mode_id, wordlist, rule, mask, username_included, device_type, brain_mode, end_timestamp, hashcat_debug_file):
 
         if name in self.sessions:
             raise Exception("This session name has already been used")
@@ -210,6 +210,9 @@ class Hashcat(object):
 
         if not device_type in [1, 2, 3]:
             raise Exception("Unsupported device type: %d" % device_type)
+
+        if not brain_mode in [0, 1, 2, 3]:
+            raise Exception("Unsupported brain mode: %d" % brain_mode)
 
         if crack_type == "dictionary":
             if rule != None and not rule in self.rules:
@@ -249,6 +252,7 @@ class Hashcat(object):
             mask_file=mask_path,
             username_included=username_included,
             device_type=device_type,
+            brain_mode=brain_mode,
             end_timestamp=end_timestamp,
             output_file=output_file,
             session_status="Not started",
@@ -399,6 +403,7 @@ class Session(Model):
     mask_file = CharField(null=True)
     username_included = BooleanField()
     device_type = IntegerField()
+    brain_mode = IntegerField()
     end_timestamp = IntegerField(null=True)
     output_file = CharField(null=True)
     session_status = CharField()
@@ -472,6 +477,13 @@ class Session(Model):
         else:
             # resume previous session
             cmd_line = [Hashcat.binary, '--session', self.name, '--restore']
+
+        if Hashcat.brain['enabled'] == 'true' and self.brain_mode != 0:
+            cmd_line += ['-z']
+            cmd_line += ['--brain-client-features', str(self.brain_mode)]
+            cmd_line += ['--brain-host', Hashcat.brain['host']]
+            cmd_line += ['--brain-port', Hashcat.brain['port']]
+            cmd_line += ['--brain-password', Hashcat.brain['password']]
 
         print("Session:%s, startup command:%s" % (self.name, " ".join(cmd_line)))
         logging.debug("Session:%s, startup command:%s" % (self.name, " ".join(cmd_line)))

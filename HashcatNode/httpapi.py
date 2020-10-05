@@ -252,6 +252,7 @@ class Server:
                 data["mask"] if "mask" in data else None,
                 data["username_included"],
                 int(data["device_type"]),
+                int(data["brain_mode"]),
                 int(data["end_timestamp"]) if data["end_timestamp"] != None else None,
                 data["hashcat_debug_file"],
             )

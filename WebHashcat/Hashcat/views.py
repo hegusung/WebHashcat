@@ -170,6 +170,7 @@ def new_session(request):
             mask = request.POST["mask"]
 
         device_type = int(request.POST["device_type"])
+        brain_mode = int(request.POST["brain_mode"])
 
         if request.POST["end_datetime"]:
             end_timestamp = int(datetime.strptime(request.POST["end_datetime"], "%m/%d/%Y %I:%M %p").timestamp())
@@ -185,9 +186,9 @@ def new_session(request):
 
         hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
         if crack_type == "dictionary":
-            res = hashcat_api.create_dictionary_session(session_name, hashfile, rule, wordlist, device_type, end_timestamp, hashcat_debug_file)
+            res = hashcat_api.create_dictionary_session(session_name, hashfile, rule, wordlist, device_type, brain_mode, end_timestamp, hashcat_debug_file)
         elif crack_type == "mask":
-            res = hashcat_api.create_mask_session(session_name, hashfile, mask, device_type, end_timestamp, hashcat_debug_file)
+            res = hashcat_api.create_mask_session(session_name, hashfile, mask, device_type, brain_mode, end_timestamp, hashcat_debug_file)
 
         if res["response"] == "error":
             messages.error(request, res["message"])

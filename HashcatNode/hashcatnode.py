@@ -66,6 +66,12 @@ def main(run_server=True):
     Hashcat.wordlist_dir = wordlist_dir
     Hashcat.mask_dir = mask_dir
     Hashcat.workload_profile = workload_profile
+    Hashcat.brain = {
+        'enabled': config['Brain']['enabled'],
+        'host': config['Brain']['host'],
+        'port': config['Brain']['port'],
+        'password': config['Brain']['password'],
+    }
 
     Hashcat.parse_version()
     Hashcat.parse_help()
