@@ -1,12 +1,12 @@
-from django.conf.urls import url
+from django.urls import re_path
 
 from . import views
 
 app_name = 'Nodes'
 urlpatterns = [
-        url(r'^nodes$', views.nodes, name='nodes'),
-        url(r'^node/(.*)$', views.node, name='node'),
-        url(r'^new_node$', views.new_node, name='new_node'),
-        url(r'^delete_node/(.*)$', views.delete_node, name='delete_node'),
+        re_path(r'^nodes$', views.nodes, name='nodes'),
+        re_path(r'^node/(.*)$', views.node, name='node'),
+        re_path(r'^new_node$', views.new_node, name='new_node'),
+        re_path(r'^delete_node/(.*)$', views.delete_node, name='delete_node'),
 ]
 

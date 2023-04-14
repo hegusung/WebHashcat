@@ -13,8 +13,6 @@ from shutil import copyfile
 #from celery import Celery
 from WebHashcat.celery import app
 from celery.schedules import crontab
-from celery.decorators import task
-from celery.decorators import periodic_task
 from celery.utils.log import get_task_logger
 from celery.signals import celeryd_after_setup
 from django.db import connection

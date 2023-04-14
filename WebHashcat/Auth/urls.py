@@ -1,9 +1,9 @@
-from django.conf.urls import url
+from django.urls import re_path
 
 from . import views
 
 app_name = 'Auth'
 urlpatterns = [
-        url(r'^$', views.auth, name='auth'),
+        re_path(r'^$', views.auth, name='auth'),
 ]
 
