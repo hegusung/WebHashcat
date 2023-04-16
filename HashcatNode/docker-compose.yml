@@ -2,7 +2,6 @@ version: '2.3'
 services:
    node:
       container_name: hashcatnode
-      runtime: nvidia
       environment:
          - NVIDIA_VISIBLE_DEVICES=all
          - HASHCATNODE_USERNAME=test
@@ -10,3 +9,9 @@ services:
       build: .
       ports:
          - "9999:9999"
+      deploy:
+        resources:
+          reservations:
+            devices:
+            - driver: nvidia
+              capabilities: [gpu]

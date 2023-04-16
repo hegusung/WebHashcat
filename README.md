@@ -62,6 +62,13 @@ Using this functionality you can easily search from client's email addresses in 
 
 #### Using docker
 
+If you are using docker on Windows (or WSL), change the Dockerfile:
+```
+FROM dizcza/docker-hashcat:latest
+# to:
+FROM dizcza/docker-hashcat:cuda
+```
+
 First install nvidia-docker:
 ```
 curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
