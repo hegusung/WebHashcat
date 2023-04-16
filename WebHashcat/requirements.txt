@@ -5,3 +5,4 @@ requests-toolbelt
 humanize
 mysqlclient
 redis
+tzdata

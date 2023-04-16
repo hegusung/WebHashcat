@@ -59,6 +59,26 @@ Using this functionality you can easily search from client's email addresses in 
 ## Install
 
 ### HashcatNode
+
+#### Using docker
+
+First install nvidia-docker:
+```
+curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+sudo apt-get update
+sudo apt-get install -y nvidia-docker2
+sudo pkill -SIGHUP dockerd
+```
+
+Then, run the following docker command:
+```
+docker-compose up -d --build
+```
+
+#### Manual install
+
 HashcatNode can be run on both Windows and Python
 
 Windows limitation:
@@ -98,7 +118,7 @@ python3 hashcatnode.py
 * Register as a service (systemd) (linux only)
 Edit the systemd/hashcatnode.service file to match your setup, then copy it to /etc/systemd/system/ 
 
-#### Dependencies
+##### Dependencies
 
 - python3
 - flask
@@ -108,8 +128,21 @@ Edit the systemd/hashcatnode.service file to match your setup, then copy it to /
 
 ### WebHashcat
 
+#### Using docker
 
-#### Installing Packages
+docker-compose >= 2.29 is required, you can install it using the following guide:
+https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-compose-on-ubuntu-20-04
+
+Then, run the following command:
+```
+docker-compose up -d --build
+```
+
+WebHashcat should be available on port 8000
+
+#### Manual install
+
+##### Installing Packages
 
 Install the following packages:
 ```
@@ -124,7 +157,7 @@ Install the pip packages:
 pip3 install -r requirements.txt
 ```
 
-#### Creating the database
+##### Creating the database
 
 Create the database using the following command to ensure you can insert utf8 usernames/passwords
 ```
@@ -133,7 +166,7 @@ mysql> CREATE USER webhashcat IDENTIFIED BY '<insert_password_here>';
 mysql> GRANT ALL PRIVILEGES ON webhashcat.* TO 'webhashcat';
 ```
 
-#### Configuration
+##### Configuration
 
 WebHashcat is a django application using mysql database, its installation is done this way:
 * Copy `Webhashcat/settings.py.sample` file to `WebHashcat/settings.py`
@@ -166,7 +199,7 @@ you can refer to the following django documentation for further info: https://do
 ./manage.py createsuperuser
 ```
 
-#### Setting up the web server
+##### Setting up the web server
 
 * If you want to test the interface without setting up a web server use this command:
 ```
@@ -176,14 +209,14 @@ you can refer to the following django documentation for further info: https://do
 * If you want to set up the interface with a proper webserver like apache or nginx please refer to the following documentation:
 https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/modwsgi/
 
-#### Setting up supervisor
+##### Setting up supervisor
 
 Supervisor is the deamon which is responsible of heavy background tasks such as pulling latest results from the nodes or importing hashfiles.
 
 * After installing supervisor, copy the configuration files from the Webhashcat/supervisor folder to the /etc/supervisor/conf.d/ folder.
 * Once done, edit them to match your configuration
 
-#### Dependencies
+##### Dependencies
 
 - python3
 - django >= 2
