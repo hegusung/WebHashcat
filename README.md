@@ -77,6 +77,10 @@ Then, run the following docker command:
 docker-compose up -d --build
 ```
 
+The default credentials are: test:test
+
+Change them by editing the docker-compose.yml config file
+
 #### Manual install
 
 HashcatNode can be run on both Windows and Python
