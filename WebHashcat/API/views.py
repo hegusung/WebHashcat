@@ -271,6 +271,8 @@ def api_hashfiles(request):
             hashcat_info = hashcat_api.get_hashcat_info()
             for session in hashcat_info["sessions"]:
                 session_status[session["name"]] = session["status"]
+        except requests.exceptions.ConnectionError:
+            pass
         except ConnectionRefusedError:
             pass
         except requests.exceptions.ConnectTimeout:
@@ -392,13 +394,25 @@ def api_hashfile_sessions(request):
                 "speed": speed,
                 "buttons": buttons,
             })
+        except requests.exceptions.ConnectionError:
+            data.append({
+                "node": node.name,
+                "type": "",
+                "rule_mask": "",
+                "wordlist": "",
+                "status": "Node not accessible",
+                "remaining": "",
+                "progress": "",
+                "speed": "",
+                "buttons": "",
+            })
         except ConnectionRefusedError:
             data.append({
                 "node": node.name,
                 "type": "",
                 "rule_mask": "",
                 "wordlist": "",
-                "status": "",
+                "status": "Node not accessible",
                 "remaining": "",
                 "progress": "",
                 "speed": "",

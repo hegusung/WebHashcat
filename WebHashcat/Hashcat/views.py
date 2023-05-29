@@ -6,6 +6,7 @@ import os.path
 import tempfile
 import humanize
 import time
+import requests
 from datetime import datetime
 from collections import OrderedDict
 
@@ -184,11 +185,15 @@ def new_session(request):
         else:
             hashcat_debug_file = False
 
-        hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
-        if crack_type == "dictionary":
-            res = hashcat_api.create_dictionary_session(session_name, hashfile, rule, wordlist, device_type, brain_mode, end_timestamp, hashcat_debug_file)
-        elif crack_type == "mask":
-            res = hashcat_api.create_mask_session(session_name, hashfile, mask, device_type, brain_mode, end_timestamp, hashcat_debug_file)
+        try:
+            hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
+            if crack_type == "dictionary":
+                res = hashcat_api.create_dictionary_session(session_name, hashfile, rule, wordlist, device_type, brain_mode, end_timestamp, hashcat_debug_file)
+            elif crack_type == "mask":
+                res = hashcat_api.create_mask_session(session_name, hashfile, mask, device_type, brain_mode, end_timestamp, hashcat_debug_file)
+        except requests.exceptions.ConnectionError: 
+            messages.error(request, "Node %s not accessible" % node_name)
+            return redirect('Hashcat:hashfiles')
 
         if res["response"] == "error":
             messages.error(request, res["message"])

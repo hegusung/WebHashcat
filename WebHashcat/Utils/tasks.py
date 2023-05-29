@@ -28,6 +28,7 @@ logger = get_task_logger(__name__)
 
 @app.on_after_finalize.connect
 def setup_periodic_tasks(sender, **kwargs):
+    print("setup_periodic_tasks")
     sender.add_periodic_task(1*60, update_potfile_task.s())  # Every 5 minutes
     sender.add_periodic_task(2*60*60, update_cracked_count.s()) # Every 2 Hours
     sender.add_periodic_task(3*60*60, optimize_potfile.s()) # Every 3 Hours
@@ -211,6 +212,7 @@ def run_search_task(search_id):
 
 @app.task(name="update_potfile_task")
 def update_potfile_task():
+    print("Updating potfile")
     Hashcat.update_hashfiles()
 
 @app.task(name="update_cracked_count")

@@ -104,7 +104,7 @@ class Hashcat(object):
                 if hash_mode_match:
                     self._hash_types[int(hash_mode_match.group("id"))] = {
                         "id": int(hash_mode_match.group("id")),
-                        "name": hash_mode_match.group("name"),
+                        "name": "%s (%d)" % (hash_mode_match.group("name"), int(hash_mode_match.group("id"))),
                         "description": hash_mode_match.group("description"),
                     }
 
@@ -243,13 +243,27 @@ class Hashcat(object):
 
 
             try:
+                # 0 - Hashcat can change the hash output (upper/lower chars), lets pass them through hashcat first
+
+                f = tempfile.NamedTemporaryFile(delete=False)
+                f.close()
+                cmd_line = [self.get_binary(), '--left', '-m', str(hashfile.hash_type), hashfile_path, '-o', f.name]
+                cmd_line += ['--outfile-format', '1']
+                cmd_line += ['--potfile-path', '/dev/null']
+                if hashfile.username_included:
+                    cmd_line += ['--username']
+
+                print("%s: Command: %s" % (hashfile.name, " ".join(cmd_line)))
+                p = subprocess.Popen(cmd_line, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                p.wait()
+
                 # 1 - import hashfile to database
 
                 start = time.perf_counter()
 
                 batch_create_list = []
                 hash_count = 0
-                for index, line in enumerate(open(hashfile_path, encoding='utf-8')):
+                for index, line in enumerate(open(f.name, encoding='utf-8')):
                     try:
                         line = line.strip()
                         if hashfile.username_included:
@@ -286,6 +300,8 @@ class Hashcat(object):
                             Hash.objects.bulk_create(batch_create_list[:1000])
                             batch_create_list = batch_create_list[1000:]
                         hashfile.save()
+
+                os.remove(f.name)
 
                 hashfile.line_count += len(batch_create_list)
                 while len(batch_create_list) != 0:
@@ -546,6 +562,7 @@ class Hashcat(object):
         self.backup_potfile()
 
         updated_hashfile_ids = self.update_potfile()
+        print(updated_hashfile_ids)
 
         for hashfile_id in updated_hashfile_ids:
             hashfile = Hashfile.objects.get(id=hashfile_id)

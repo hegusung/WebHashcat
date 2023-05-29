@@ -3,7 +3,8 @@ WebHashcat/settings.ini
 WebHashcat/db.sqlite3
 WebHashcat/Files/potfile*
 WebHashcat/Files/tmp/*
-WebHashcat/Files/Hashfiles/*.hashfile
+WebHashcat/Files/Hashfiles/**
+!WebHashcat/Files/Hashfiles/.gitkeep
 WebHashcat/Files/Crackedfiles/*.crackedfile
 WebHashcat/Files/Maskfiles/*.hcmask
 WebHashcat/Files/Rulefiles/*.rule
