@@ -1,6 +1,26 @@
 version: '3.7'
 
 services:
+  db:
+    image: mysql:8.0.32-debian
+    env_file:
+      - variables.env
+    networks:
+      - webhashcat
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:alpine
+    networks:
+      - webhashcat
+    healthcheck:
+      test: ["CMD", "redis-cli","ping"]
+      timeout: 5s
+      retries: 10
+
   web:
     build: .
     command: python3 manage.py runserver 0.0.0.0:8000
@@ -11,20 +31,12 @@ services:
     volumes:
       - ./Files:/webhashcat/Files
     depends_on:
-      - redis
-      - db
-
-  db:
-    image: mysql:5.7
-    ports:
-      - '3306:3306'
-    env_file:
-      - variables.env
-
-  redis:
-    image: redis:alpine
-    ports:
-      - '6379:6379'
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    networks:
+      - webhashcat
 
   celery:
     build: .
@@ -36,3 +48,15 @@ services:
     depends_on:
       - redis
       - db
+    networks:
+      - webhashcat
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+networks:
+  webhashcat:
+    name: webhashcat
+    driver: bridge
