@@ -155,17 +155,20 @@ class HashcatAPI(object):
         res = conn.getresponse()
         """
 
-        url = "https://%s:%d%s" % (self.ip, self.port, url)
-        if data == None:
-            res = requests.get(url, headers=headers, verify=False, timeout=TIMEOUT)
-        else:
-            res = requests.post(url, json.dumps(data), headers=headers, verify=False, timeout=TIMEOUT)
+        try:
+            url = "https://%s:%d%s" % (self.ip, self.port, url)
+            if data == None:
+                res = requests.get(url, headers=headers, verify=False, timeout=TIMEOUT)
+            else:
+                res = requests.post(url, json.dumps(data), headers=headers, verify=False, timeout=TIMEOUT)
 
-        #data = res.read()
-        data = res.text
+            #data = res.read()
+            data = res.text
 
-        #conn.close()
-        return json.loads(data)
+            #conn.close()
+            return json.loads(data)
+        except requests.exceptions.ConnectionError:
+            return None
 
     def post_file(self, url, data, filepath):
         headers = {

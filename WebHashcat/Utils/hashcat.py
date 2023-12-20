@@ -592,7 +592,7 @@ class Hashcat(object):
                         remaining = True
                         while(remaining):
                             potfile_data = hashcat_api.get_potfile(session.name, session.potfile_line_retrieved)
-                            if potfile_data["response"] == "ok" and potfile_data["line_count"] > 0:
+                            if potfile_data != None and potfile_data["response"] == "ok" and potfile_data["line_count"] > 0:
                                 f = open(self.get_potfile(), "a", encoding='utf-8')
                                 f.write(potfile_data["potfile_data"])
                                 f.close()
