@@ -47,7 +47,9 @@
                         <div class="col-sm-9">
                            <div id="CheckedListBox1" style="border-width:1px;border-style:Solid;height:300px;width:100%;overflow-y:scroll;padding:2px;">
                               {% for hashfile in hashfile_list %}
+			      {% if hashfile.owner == request.user or request.user.is_staff %}
                               <input type="checkbox" style="margin-right: 5px;" name="hashfile_search[]" value="{{ hashfile.id }}" />{{ hashfile.name }}<br>
+			      {% endif %}
                               {% endfor %}
                            </div>
                         </div>

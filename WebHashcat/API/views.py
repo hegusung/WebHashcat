@@ -17,6 +17,7 @@ from django.shortcuts import render
 from django.shortcuts import redirect
 from django.template import loader
 from django.urls import reverse
+from django.http import Http404
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.middleware.csrf import get_token
@@ -108,8 +109,13 @@ def api_statistics(request):
 
     data = []
 
-    count_lines = Hashfile.objects.aggregate(Sum('line_count'))["line_count__sum"]
-    count_cracked = Hashfile.objects.aggregate(Sum('cracked_count'))["cracked_count__sum"]
+    if request.user.is_staff:
+        count_lines = Hashfile.objects.aggregate(Sum('line_count'))["line_count__sum"]
+        count_cracked = Hashfile.objects.aggregate(Sum('cracked_count'))["cracked_count__sum"]
+    else:
+        count_lines = Hashfile.objects.filter(owner=request.user).aggregate(Sum('line_count'))["line_count__sum"]
+        count_cracked = Hashfile.objects.filter(owner=request.user).aggregate(Sum('cracked_count'))["cracked_count__sum"]
+
     if count_cracked == None:
         count_cracked = 0
     if count_lines == None:
@@ -132,8 +138,12 @@ def api_cracked_ratio(request):
     else:
         params = request.GET
 
-    count_lines = Hashfile.objects.aggregate(Sum('line_count'))["line_count__sum"]
-    count_cracked = Hashfile.objects.aggregate(Sum('cracked_count'))["cracked_count__sum"]
+    if request.user.is_staff:
+        count_lines = Hashfile.objects.aggregate(Sum('line_count'))["line_count__sum"]
+        count_cracked = Hashfile.objects.aggregate(Sum('cracked_count'))["cracked_count__sum"]
+    else:
+        count_lines = Hashfile.objects.filter(owner=request.user).aggregate(Sum('line_count'))["line_count__sum"]
+        count_cracked = Hashfile.objects.filter(owner=request.user).aggregate(Sum('cracked_count'))["cracked_count__sum"]
 
     if count_cracked == None:
         count_cracked = 0
@@ -163,7 +173,12 @@ def api_running_sessions(request):
     }
 
     data = []
-    for session in Session.objects.all():
+    if request.user.is_staff:
+        session_list = Session.objects.all()
+    else:
+        session_list = Session.objects.filter(hashfile__owner=request.user)
+
+    for session in session_list:
         node = session.node
 
         try:
@@ -207,7 +222,12 @@ def api_error_sessions(request):
     }
 
     data = []
-    for session in Session.objects.all():
+    if request.user.is_staff:
+        session_list = Session.objects.all()
+    else:
+        session_list = Session.objects.filter(hashfile__owner=request.user)
+
+    for session in session_list:
         node = session.node
 
         try:
@@ -278,9 +298,16 @@ def api_hashfiles(request):
         except requests.exceptions.ConnectTimeout:
             pass
 
+
+    if request.user.is_staff:
+        hashfile_list = Hashfile.objects
+    else:
+        hashfile_list = Hashfile.objects.filter(owner=request.user)
+
+
     sort_index = ["name", "name", "hash_type", "line_count", "cracked_count", "name", "name", "name"][int(params["order[0][column]"])]
     sort_index = "-" + sort_index if params["order[0][dir]"] == "desc" else sort_index
-    hashfile_list = Hashfile.objects.filter(name__contains=params["search[value]"]).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
+    hashfile_list = hashfile_list.filter(name__contains=params["search[value]"]).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
 
     data = []
     for hashfile in hashfile_list:
@@ -312,8 +339,14 @@ def api_hashfiles(request):
             })
 
     result["data"] = data
-    result["recordsTotal"] = Hashfile.objects.all().count()
-    result["recordsFiltered"] = Hashfile.objects.filter(name__contains=params["search[value]"]).count()
+
+
+    if request.user.is_staff:
+        result["recordsTotal"] = Hashfile.objects.all().count()
+        result["recordsFiltered"] = Hashfile.objects.filter(name__contains=params["search[value]"]).count()
+    else:
+        result["recordsTotal"] = Hashfile.objects.filter(owner=request.user).count()
+        result["recordsFiltered"] = Hashfile.objects.filter(owner=request.user).filter(name__contains=params["search[value]"]).count()
 
     for query in connection.queries[-4:]:
         print(query["sql"])
@@ -337,6 +370,10 @@ def api_hashfile_sessions(request):
     data = []
     for session in Session.objects.filter(hashfile_id=hashfile_id):
         node = session.node
+        hashfile = session.hashfile
+
+        if hashfile.owner != request.user and not request.user.is_staff:
+            continue
 
         try:
             hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
@@ -436,6 +473,9 @@ def api_hashfile_cracked(request, hashfile_id):
 
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
+    if hashfile.owner != request.user and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object.")
+
     result = {
         "draw": params["draw"],
     }
@@ -490,6 +530,9 @@ def api_hashfile_top_password(request, hashfile_id, N):
 
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
+    if hashfile.owner != request.user and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object.")
+
     pass_count_list = Hash.objects.raw("SELECT 1 AS id, MAX(password) AS password, COUNT(*) AS count FROM Hashcat_hash WHERE hashfile_id=%s AND password IS NOT NULL GROUP BY BINARY password ORDER BY count DESC LIMIT 10", [hashfile.id])
 
     top_password_list = []
@@ -517,6 +560,9 @@ def api_hashfile_top_password_len(request, hashfile_id, N):
         params = request.GET
 
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
+
+    if hashfile.owner != request.user and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object.")
 
     # didn't found the correct way in pure django...
     pass_count_list = Hash.objects.raw("SELECT 1 AS id, MAX(password_len) AS password_len, COUNT(*) AS count FROM Hashcat_hash WHERE hashfile_id=%s AND password IS NOT NULL GROUP BY password_len", [hashfile.id])
@@ -562,6 +608,9 @@ def api_hashfile_top_password_charset(request, hashfile_id, N):
 
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
+    if hashfile.owner != request.user and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object.")
+
     # didn't found the correct way in pure django...
     pass_count_list = Hash.objects.raw("SELECT 1 AS id, MAX(password_charset) AS password_charset, COUNT(*) AS count FROM Hashcat_hash WHERE hashfile_id=%s AND password IS NOT NULL GROUP BY password_charset ORDER BY count DESC LIMIT 10", [hashfile.id])
 
@@ -590,6 +639,10 @@ def api_session_action(request):
         params = request.GET
 
     session = get_object_or_404(Session, name=params["session_name"])
+
+    if hashfile.owner != request.user and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object.")
+
     node = session.node
 
     hashcat_api = HashcatAPI(node.hostname, node.port, node.username, node.password)
@@ -608,6 +661,9 @@ def api_hashfile_action(request):
         params = request.GET
 
     hashfile = get_object_or_404(Hashfile, id=params["hashfile_id"])
+
+    if hashfile.owner != request.user and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object.")
 
     print("Hashfile %s action %s" % (hashfile.name, params["action"])) 
 
@@ -639,9 +695,15 @@ def api_search_list(request):
         "draw": params["draw"],
     }
 
+    if request.user.is_staff:
+        search_list = Search.objects
+    else:
+        search_list = Search.objects.filter(owner=request.user)
+
+
     sort_index = ["name", "status", "output_lines"][int(params["order[0][column]"])]
     sort_index = "-" + sort_index if params["order[0][dir]"] == "desc" else sort_index
-    search_list = Search.objects.filter(name__contains=params["search[value]"]).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
+    search_list = search_list.filter(name__contains=params["search[value]"]).order_by(sort_index)[int(params["start"]):int(params["start"])+int(params["length"])]
 
     data = []
     for search in search_list:
@@ -677,6 +739,9 @@ def api_search_action(request):
 
     search = get_object_or_404(Search, id=params["search_id"])
 
+    if search.owner != request.user and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object.")
+
     if params["action"] == "remove":
         if os.path.exists(search.output_file):
             os.remove(search.output_file)
@@ -696,6 +761,9 @@ def api_upload_file(request):
     try:
         user = User.objects.get(username=username)
     except User.DoesNotExist:
+        return HttpResponse(status=401)
+
+    if not user.is_staff:
         return HttpResponse(status=401)
     
     password_valid = user.check_password(password)

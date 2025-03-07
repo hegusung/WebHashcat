@@ -3,6 +3,7 @@ WebHashcat/settings.ini
 WebHashcat/db.sqlite3
 WebHashcat/Files/potfile*
 WebHashcat/Files/tmp/*
+!WebHashcat/Files/tmp/.gitkeep
 WebHashcat/Files/Hashfiles/**
 !WebHashcat/Files/Hashfiles/.gitkeep
 WebHashcat/Files/Crackedfiles/*.crackedfile
@@ -10,6 +11,7 @@ WebHashcat/Files/Maskfiles/*.hcmask
 WebHashcat/Files/Rulefiles/*.rule
 WebHashcat/Files/Wordlistfiles/*.wordlist
 WebHashcat/Files/Searches/**
+!WebHashcat/Files/Searches/.gitkeep
 WebHashcat/celerybeat.pid
 WebHashcat/celerybeat-schedule
 HashcatNode/*.crt

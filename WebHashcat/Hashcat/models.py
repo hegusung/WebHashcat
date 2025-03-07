@@ -1,10 +1,13 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 from Nodes.models import Node
+
 
 # Create your models here.
 
 class Hashfile(models.Model):
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)  # Link to user
     name = models.CharField(max_length=30)
     hashfile = models.CharField(max_length=30)
     hash_type = models.IntegerField()
@@ -37,6 +40,7 @@ class Hash(models.Model):
         ]
 
 class Search(models.Model):
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)  # Link to user
     name = models.CharField(max_length=100)
     status = models.CharField(max_length=100)
     output_lines = models.IntegerField(null=True)

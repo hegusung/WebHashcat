@@ -17,6 +17,7 @@ from django.urls import reverse
 from django.http import HttpResponse
 from django.http import StreamingHttpResponse
 from django.http import FileResponse
+from django.http import Http404
 from django.contrib.auth.decorators import login_required
 from django.middleware.csrf import get_token
 from django.db.models import Q, Count, BinaryField
@@ -24,6 +25,7 @@ from django.db.models.functions import Cast
 from django.db import connection
 from django.contrib import messages
 from django.db.utils import OperationalError
+from django.contrib.admin.views.decorators import staff_member_required
 
 from django.shortcuts import get_object_or_404
 
@@ -71,6 +73,7 @@ def hashfiles(request):
             username_included = "username_included" in request.POST
 
             hashfile = Hashfile(
+                owner=request.user,
                 name=request.POST['name'],
                 hashfile=hashfile_name,
                 hash_type=hash_type,
@@ -108,17 +111,31 @@ def search(request):
         search_info = {}
         if len(request.POST["search_pattern"]) != 0:
             search_info["pattern"] = request.POST["search_pattern"]
+
+        hashfile_list = []
         if "all_hashfiles" in request.POST:
-            search_info["all_hashfiles"] = True
+            for hashfile in Hashfile.objects.all():
+                if hashfile.owner == request.user or request.user.is_staff:
+                    hashfile_list.append(hashfile.id)
         else:
-            search_info["hashfiles"] = request.POST.getlist("hashfile_search[]")
+            for hashfile_id in request.POST.getlist("hashfile_search[]"):
+                hashfile = Hashfile.objects.get(id=int(hashfile_id))
+
+                if hashfile != None:
+                    if hashfile.owner == request.user or request.user.is_staff:
+                        hashfile_list.append(int(hashfile_id))
+        search_info["hashfiles"] = hashfile_list
+
         if "ignore_uncracked" in request.POST:
             search_info["ignore_uncracked"] = True
+
+        print(search_info)
 
         search_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12)) + ".csv"
         output_file = os.path.join(os.path.dirname(__file__), "..", "Files", "Searches", search_filename)
 
         search = Search(
+            owner=request.user,
             name=request.POST['search_name'],
             status="Starting",
             output_lines=None,
@@ -133,6 +150,7 @@ def search(request):
     return HttpResponse(template.render(context, request))
 
 @login_required
+@staff_member_required
 def files(request):
     context = {}
     context["Section"] = "Files"
@@ -162,6 +180,10 @@ def new_session(request):
         node = get_object_or_404(Node, name=node_name)
 
         hashfile = get_object_or_404(Hashfile, id=request.POST['hashfile_id'])
+
+        # Check if the user owns the Hashfile or Staff
+        if request.user != hashfile.owner and not request.user.is_staff:
+            raise Http404("You do not have permission to view this object")
 
         crack_type = request.POST["crack_type"]
         if crack_type == "dictionary":
@@ -212,6 +234,7 @@ def new_session(request):
     return redirect('Hashcat:hashfiles')
 
 @login_required
+@staff_member_required
 def upload_rule(request):
     if request.method == 'POST':
         name = request.POST["name"]
@@ -226,6 +249,7 @@ def upload_rule(request):
     return redirect('Hashcat:files')
 
 @login_required
+@staff_member_required
 def upload_mask(request):
     if request.method == 'POST':
         name = request.POST["name"]
@@ -241,6 +265,7 @@ def upload_mask(request):
     return redirect('Hashcat:files')
 
 @login_required
+@staff_member_required
 def upload_wordlist(request):
     if request.method == 'POST':
         name = request.POST["name"]
@@ -261,6 +286,10 @@ def hashfile(request, hashfile_id, error_msg=''):
 
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
+    # Check if the user owns the Hashfile or Staff
+    if request.user != hashfile.owner and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object")
+
     context['hashfile'] = hashfile
     context['lines'] = humanize.intcomma(hashfile.line_count)
     context['recovered'] = "%s (%.2f%%)" % (humanize.intcomma(hashfile.cracked_count), hashfile.cracked_count/hashfile.line_count*100) if hashfile.line_count != 0 else "0"
@@ -272,6 +301,10 @@ def hashfile(request, hashfile_id, error_msg=''):
 @login_required
 def export_cracked(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
+
+    # Check if the user owns the Hashfile or Staff
+    if request.user != hashfile.owner and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object")
 
     cracked_hashes = Hash.objects.filter(hashfile_id=hashfile.id, password__isnull=False)
 
@@ -287,6 +320,12 @@ def export_cracked(request, hashfile_id):
 def export_uncracked(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
 
+    # Check if the user owns the Hashfile or Staff
+    if request.user != hashfile.owner and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object")
+
+
+
     uncracked_hashes = Hash.objects.filter(hashfile_id=hashfile.id, password__isnull=True)
 
     if hashfile.username_included:
@@ -300,6 +339,10 @@ def export_uncracked(request, hashfile_id):
 @login_required
 def csv_masks(request, hashfile_id):
     hashfile = get_object_or_404(Hashfile, id=hashfile_id)
+
+    # Check if the user owns the Hashfile or Staff
+    if request.user != hashfile.owner and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object")
 
     # didn't found the correct way in pure django...
     rows = Hash.objects.raw("SELECT 1 AS id, MAX(password_mask) AS password_mask, COUNT(*) AS count FROM Hashcat_hash WHERE hashfile_id=%s AND password_mask IS NOT NULL GROUP BY password_mask ORDER BY count DESC", [hashfile.id])
@@ -315,6 +358,10 @@ def csv_masks(request, hashfile_id):
 @login_required
 def export_search(request, search_id):
     search = get_object_or_404(Search, id=search_id)
+
+    # Check if the user owns the Hashfile or Staff
+    if request.user != search.owner and not request.user.is_staff:
+        raise Http404("You do not have permission to view this object")
 
     response = FileResponse(open(search.output_file, 'rb'), content_type="text/csv")
 

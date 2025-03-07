@@ -13,7 +13,7 @@ Including another URLconf
     1. Import the include() function: from django.conf.urls import url, include
     2. Add a URL to urlpatterns:  url(r'^blog/', include('blog.urls'))
 """
-from django.urls import include,re_path
+from django.urls import include,re_path,path
 from django.contrib import admin
 from django.views.generic import RedirectView
 
@@ -22,4 +22,5 @@ urlpatterns = [
     re_path(r'^Nodes/', include('Nodes.urls', namespace='Nodes')),
     re_path(r'^', include('Hashcat.urls', namespace='Hashcat')),
     re_path(r'^api/', include('API.urls', namespace='API')),
+    path("admin/", admin.site.urls),
 ]

@@ -65,11 +65,13 @@
             {% else %}
                <li ><a href="{% url "Hashcat:hashfiles" %}">Hashcat</a></li>
             {% endif %}
+	    {% if request.user.is_staff %}
             {% if Section == "Nodes" %}
                <li class="active"><a href="{% url "Nodes:nodes" %}">Nodes</a></li>
             {% else %}
                <li ><a href="{% url "Nodes:nodes" %}">Nodes</a></li>
             {% endif %}
+	    {% endif %}
           </ul>
         </div>
       </div>
@@ -89,10 +91,12 @@
                <li ><a href="{% url "Hashcat:hashfiles" %}">Hashfiles</a></li>
             {% endif %}
             <li {% if Section == "Search" %}class="active"{% endif %}><a href="{% url "Hashcat:search" %}">Search</a></li>
+	    {% if request.user.is_staff %}
             {% if Section == "Files" %}
                <li class="active"><a href="{% url "Hashcat:files" %}">Files</a></li>
             {% else %}
                <li ><a href="{% url "Hashcat:files" %}">Files</a></li>
+            {% endif %}
             {% endif %}
           {% endif %}
           {% if Section == "Nodes" %}

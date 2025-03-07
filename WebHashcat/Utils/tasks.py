@@ -135,12 +135,11 @@ def run_search_task(search_id):
             if not "all_hashfiles" in search_info or "ignore_uncracked" in search_info:
                 query += " AND "
 
-        if not "all_hashfiles" in search_info:
-            query += "hashfile_id IN (%s)" % ','.join(['%s'] * len(search_info["hashfiles"]))
-            args += [int(i) for i in search_info["hashfiles"]]
+        query += "hashfile_id IN (%s)" % ','.join(['%s'] * len(search_info["hashfiles"]))
+        args += [int(i) for i in search_info["hashfiles"]]
 
-            if "ignore_uncracked" in search_info:
-                query += " AND "
+        if "ignore_uncracked" in search_info:
+            query += " AND "
 
         if "ignore_uncracked" in search_info:
             query += "password IS NOT NULL"

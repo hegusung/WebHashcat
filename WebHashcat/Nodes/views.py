@@ -20,6 +20,8 @@ from django.db.models import Q, Count, BinaryField
 from django.db.models.functions import Cast
 from django.db import connection
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
+
 
 from django.shortcuts import get_object_or_404
 
@@ -33,6 +35,7 @@ from Utils.hashcat import Hashcat
 # Create your views here.
 
 @login_required
+@staff_member_required
 def nodes(request, error_msg=""):
 
     context = {}
@@ -47,6 +50,7 @@ def nodes(request, error_msg=""):
     return HttpResponse(template.render(context, request))
 
 @login_required
+@staff_member_required
 def node(request, node_name, error_msg=""):
 
     context = {}
@@ -142,6 +146,7 @@ def node(request, node_name, error_msg=""):
 
 
 @login_required
+@staff_member_required
 def new_node(request):
     if request.method == 'POST':
         node_name = request.POST["name"]
@@ -168,6 +173,7 @@ def new_node(request):
         return redirect('Nodes:nodes')
 
 @login_required
+@staff_member_required
 def delete_node(request, node_name):
 
     try:
